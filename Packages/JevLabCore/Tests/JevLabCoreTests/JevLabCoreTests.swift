@@ -445,3 +445,59 @@ final class ClaudeModeTests: XCTestCase {
         XCTAssertEqual(cfg.claudeCalls, cfg.backtestBars)
     }
 }
+
+final class IndicatorTests: XCTestCase {
+    /// Stejné svíčky jako v Python referenci: trojúhelníková vlna (perioda 20) + drift.
+    func series() -> [Hyperliquid.Candle] {
+        func tri(_ i: Int) -> Double {
+            let x = Double(i % 20)
+            return x < 10 ? 10.0 * (x / 10.0) : 10.0 * ((20.0 - x) / 10.0)
+        }
+        var out: [Hyperliquid.Candle] = []
+        var prev = 100.0
+        for i in 0..<80 {
+            let c: Double = 100 + tri(i) + 0.1 * Double(i)
+            out.append(Hyperliquid.Candle(openMs: Int64(i) * 86_400_000, open: prev, close: c,
+                                          high: max(prev, c) + 0.5, low: min(prev, c) - 0.5, volume: 1))
+            prev = c
+        }
+        return out
+    }
+
+    func testIndicatorsMatchPythonReference() throws {
+        let c = series()
+        let price = c[75].close
+        XCTAssertEqual(price, 112.5, accuracy: 1e-9)
+        XCTAssertEqual(try XCTUnwrap(Indicators.sma(c, end: 75, n: 20)), 111.55, accuracy: 1e-9)
+        XCTAssertEqual(try XCTUnwrap(Indicators.rsi(c, end: 75)), 52.5, accuracy: 0.051)
+        let f = Indicators.features(c, end: 75, price: price, prefix: "", pivotK: 3, lookback: 120, maPeriods: [20, 50, 200])
+        let expected: [String: Double] = [
+            "ma20_dist_bps": 85.2, "ma50_dist_bps": 176.4, "ma20_slope_5bars_bps": 45.0,
+            "rsi14": 52.5, "atr14_bps": 177.3,
+            "dist_from_50bar_high_bps": -425.5, "dist_from_50bar_low_bps": 869.6,
+            "support_dist_bps": 89.7, "support_dist_atr": 0.5, "support_touches": 1,
+            "resistance_dist_bps": 88.9, "resistance_dist_atr": 0.5, "resistance_touches": 1,
+        ]
+        for (k, v) in expected { XCTAssertEqual(f[k] ?? .nan, v, accuracy: 0.051, k) }
+        XCTAssertNil(f["ma200_dist_bps"], "MA200 nemá dost historie")
+    }
+
+    func testLevelClusteringAndNearest() {
+        let lv = Indicators.levels(from: [105.3, 100, 110, 100.4, 105, 105.2], tolerance: 0.5)
+        XCTAssertEqual(lv.count, 3)
+        XCTAssertEqual(lv[0].touches, 2)
+        XCTAssertEqual(lv[0].price, 100.2, accuracy: 1e-9)
+        XCTAssertEqual(lv[1].touches, 3)
+        XCTAssertEqual(lv[1].price, (105 + 105.2 + 105.3) / 3, accuracy: 1e-9)
+        let near = Indicators.nearest(lv, price: 106)
+        XCTAssertEqual(near.support?.touches, 3)
+        XCTAssertEqual(near.resistance?.price ?? 0, 110, accuracy: 1e-9)
+    }
+
+    func testPivotsNeverUseFutureBars() {
+        let c = series()
+        // swing high na svíčce 10 (vrchol vlny) se smí objevit až když existují 3 svíčky za ní
+        XCTAssertFalse(Indicators.pivots(c, end: 12, k: 3, lookback: 50).contains(c[10].high))
+        XCTAssertTrue(Indicators.pivots(c, end: 13, k: 3, lookback: 50).contains(c[10].high))
+    }
+}

@@ -110,7 +110,7 @@ public enum Horizon: String, Codable, CaseIterable, Sendable, Identifiable {
 
     /// Hyperliquid vrací zhruba posledních 5000 svíček na interval, víc historie nejde.
     public var maxDays: Double {
-        Double(5000 - Features.warmup - 5) * Double(minutes) / 1440
+        Double(5000 - Features.warmup - Features.history - 5) * Double(minutes) / 1440
     }
 
     /// Kolik dní historie jde s kontextem (nižší rámec má taky jen ~5000 svíček).
@@ -142,6 +142,8 @@ public enum Horizon: String, Codable, CaseIterable, Sendable, Identifiable {
 public enum Features {
     /// Kolik předchozích svíček je potřeba, než jde featury spočítat.
     public static let warmup = 21
+    /// Kolik svíček historie se stáhne navíc před backtestem, aby existovaly MA200 a S/R.
+    public static let history = 200
 
     /// Stav na zavření svíčky `i` (počítá jen se svíčkami 0...i, nikdy s budoucností).
     public static func state(candles: [Hyperliquid.Candle], at i: Int, horizon: Horizon) -> [String: Double]? {
@@ -177,7 +179,8 @@ public enum Features {
 
     /// Featury z jiného časového rámce v okamžiku `tMs` (ms). Používá jen svíčky uzavřené do `tMs`;
     /// u právě se tvořící svíčky jen její otevírací cenu (ta je v tu chvíli známá). Nikdy budoucnost.
-    public static func context(_ tf: Timeframe, candles: [Hyperliquid.Candle], tMs: Int64, price: Double) -> [String: Double] {
+    public static func context(_ tf: Timeframe, candles: [Hyperliquid.Candle], tMs: Int64, price: Double,
+                               includeSR: Bool = true) -> [String: Double] {
         func bps(_ a: Double, _ b: Double) -> Double { a > 0 ? 1e4 * (b / a - 1) : 0 }
         var closed: [Hyperliquid.Candle] = []
         var forming: Hyperliquid.Candle?
@@ -212,6 +215,11 @@ public enum Features {
         if let f = forming {
             out[p + "current_bar_so_far_bps"] = rounded(bps(f.open, price), 2)
         }
+        // indikátory a support/rezistence z uzavřených svíček tohoto rámce
+        let ind = Indicators.features(closed, end: closed.count - 1, price: price, prefix: p,
+                                      pivotK: tf == .mo1 ? 1 : 2, lookback: tf == .mo1 ? 36 : 60,
+                                      maPeriods: [10, 20], includeSR: includeSR)
+        for (k, v) in ind { out[k] = v }
         return out
     }
 
@@ -219,9 +227,14 @@ public enum Features {
     public static func state(candles: [Hyperliquid.Candle], at i: Int, horizon: Horizon,
                              context: [Timeframe: [Hyperliquid.Candle]]) -> [String: Double]? {
         guard var s = state(candles: candles, at: i, horizon: horizon) else { return nil }
+        // indikátory a support/rezistence obchodního rámce
+        for (k, v) in Indicators.features(candles, end: i, price: candles[i].close, prefix: "",
+                                          pivotK: 3, lookback: 120, maPeriods: [20, 50, 200]) { s[k] = v }
         let tMs = candles[i].openMs + horizon.intervalMs
         for (tf, list) in context {
-            for (k, v) in Features.context(tf, candles: list, tMs: tMs, price: candles[i].close) { s[k] = v }
+            // S/R hlavně z obchodního a vyšších rámců; nižší rámec dává jen texturu
+            let higher = tf.minutes > horizon.minutes
+            for (k, v) in Features.context(tf, candles: list, tMs: tMs, price: candles[i].close, includeSR: higher) { s[k] = v }
         }
         return s
     }

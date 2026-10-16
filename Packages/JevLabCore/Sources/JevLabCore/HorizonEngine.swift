@@ -23,7 +23,7 @@ public struct HorizonConfig: Sendable, Equatable {
 
     /// Kolik svíček (a tedy Jev volání) backtest projde.
     public var backtestBars: Int {
-        max(1, min(Int(min(days, maxDays) * 1440) / horizon.minutes, 5000 - Features.warmup - 5))
+        max(1, min(Int(min(days, maxDays) * 1440) / horizon.minutes, 5000 - Features.warmup - Features.history - 5))
     }
 
     public var contextTimeframes: [Timeframe] { multiTF ? horizon.context : [] }
@@ -152,11 +152,13 @@ public final class HorizonEngine {
 
     // MARK: - Kontext a Claude
 
-    /// Stáhne svíčky kontextových rámců od `fromMs` (s rezervou na pár svíček zpět).
+    /// Stáhne svíčky kontextových rámců pro rozhodování od `fromMs`. Nižší rámec jen s malou rezervou
+    /// (má taky jen ~5000 svíček), vyšší rámce s delší historií kvůli MA a support/rezistenci.
     private func loadContext(fromMs: Int64) async -> [Timeframe: [Hyperliquid.Candle]] {
         var out: [Timeframe: [Hyperliquid.Candle]] = [:]
         for tf in config.contextTimeframes {
-            let start = fromMs - Int64(14) * Int64(tf.minutes) * 60_000
+            let back: Int64 = tf.minutes > config.horizon.minutes ? 60 : 30
+            let start = fromMs - back * Int64(tf.minutes) * 60_000
             if let list = try? await Hyperliquid.candles(coin: config.coin, interval: tf.rawValue, startMs: start) {
                 out[tf] = list
             }
@@ -191,7 +193,7 @@ public final class HorizonEngine {
         let h = config.horizon
         let nowMs = Int64(Date().timeIntervalSince1970 * 1000)
         let bars = config.backtestBars
-        let startMs = nowMs - Int64(bars + Features.warmup + 3) * h.intervalMs
+        let startMs = nowMs - Int64(bars + Features.warmup + Features.history + 3) * h.intervalMs
         let candles: [Hyperliquid.Candle]
         do {
             candles = Features.closed(try await Hyperliquid.candles(coin: config.coin, interval: h.interval, startMs: startMs),
@@ -205,14 +207,16 @@ public final class HorizonEngine {
             return
         }
         if Task.isCancelled { return }
-        let context = await loadContext(fromMs: candles[0].openMs)
+        // rozhoduje se jen v požadovaném období; svíčky před ním slouží jako historie pro indikátory
+        let firstIdx = max(Features.warmup, candles.count - 1 - bars)
+        let context = await loadContext(fromMs: candles[firstIdx].openMs)
         if Task.isCancelled { return }
-        let indices = Array(Features.warmup..<(candles.count - 1))
+        let indices = Array(firstIdx..<(candles.count - 1))
         var states: [Int: [String: Double]] = [:]
         for i in indices { states[i] = Features.state(candles: candles, at: i, horizon: h, context: context) }
 
         let every = config.claudeEvery
-        let claudeIdx = claude == nil ? [] : indices.filter { ($0 - Features.warmup) % every == 0 }
+        let claudeIdx = claude == nil ? [] : indices.filter { ($0 - firstIdx) % every == 0 }
         total = indices.count + claudeIdx.count
         lastPrice = candles.last?.close
         status = .running
@@ -318,10 +322,10 @@ public final class HorizonEngine {
         while !Task.isCancelled {
             let nowMs = Int64(Date().timeIntervalSince1970 * 1000)
             do {
-                let startMs = nowMs - Int64(Features.warmup + 8) * h.intervalMs
+                let startMs = nowMs - Int64(Features.warmup + Features.history + 8) * h.intervalMs
                 let candles = Features.closed(try await Hyperliquid.candles(coin: config.coin, interval: h.interval, startMs: startMs),
                                               horizon: h, nowMs: nowMs)
-                let context = await loadContext(fromMs: candles.first?.openMs ?? startMs)
+                let context = await loadContext(fromMs: candles.last?.openMs ?? nowMs)
                 if let lastBar = candles.last, lastBar.openMs != lastProcessed,
                    let state = Features.state(candles: candles, at: candles.count - 1, horizon: h, context: context) {
                     lastProcessed = lastBar.openMs
