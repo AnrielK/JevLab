@@ -1,0 +1,1 @@
+{"model":"typesafe-ai/jev","answers":{"side":{"choice":"sell","probabilities":{"buy":0.2,"sell":0.6}},"impact":{"score":1.69,"probabilities":{"0":0.1,"1":0.2,"2":0.6,"3":0.3}},"yes":{"noul":1.3}}}

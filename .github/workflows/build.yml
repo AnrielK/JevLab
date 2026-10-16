@@ -1,0 +1,86 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  core-tests:
+    name: Testy jádra
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      - name: swift test
+        run: swift test --package-path Packages/JevLabCore
+
+  ios:
+    name: iOS build
+    needs: core-tests
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      - name: XcodeGen
+        run: |
+          brew install xcodegen
+          xcodegen generate
+      - name: xcodebuild (iOS)
+        run: |
+          set -o pipefail
+          xcodebuild -project JevLab.xcodeproj -scheme JevLab_iOS -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' \
+            -derivedDataPath build CODE_SIGNING_ALLOWED=NO build 2>&1 | tee xcodebuild.log
+      - name: Zabalit IPA
+        run: |
+          mkdir -p Payload
+          cp -R build/Build/Products/Release-iphoneos/JevLab.app Payload/
+          zip -qr JevLab-unsigned.ipa Payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: JevLab-unsigned-ipa
+          path: JevLab-unsigned.ipa
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: xcodebuild-ios-log
+          path: xcodebuild.log
+
+  macos:
+    name: macOS build
+    needs: core-tests
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      - name: XcodeGen
+        run: |
+          brew install xcodegen
+          xcodegen generate
+      - name: xcodebuild (macOS)
+        run: |
+          set -o pipefail
+          xcodebuild -project JevLab.xcodeproj -scheme JevLab_macOS -configuration Release \
+            -destination 'generic/platform=macOS' \
+            -derivedDataPath build CODE_SIGNING_ALLOWED=NO build 2>&1 | tee xcodebuild.log
+      - name: Zabalit aplikaci
+        run: |
+          cd build/Build/Products/Release
+          ditto -c -k --keepParent JevLab.app "$GITHUB_WORKSPACE/JevLab-macOS-unsigned.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: JevLab-macOS-unsigned
+          path: JevLab-macOS-unsigned.zip
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: xcodebuild-macos-log
+          path: xcodebuild.log
