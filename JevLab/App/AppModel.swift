@@ -23,6 +23,13 @@ final class AppModel {
 
     let loop = LoopEngine()
     let newsroom = NewsroomEngine()
+    let horizon = HorizonEngine()
+    let store = RunStore.standard()
+
+    var horizonConfig = HorizonConfig()
+    /// Databáze proběhlých běhů (nejnovější první).
+    private(set) var runs: [RunSummary] = []
+    var saveError: String?
 
     var loopConfig = LoopConfig()
     var newsHours: Double = 36
@@ -44,6 +51,40 @@ final class AppModel {
             strategy = StrategySettings()
         }
         refreshKeys()
+        runs = store.summaries()
+        loop.onFinish = { [weak self] detail in self?.saveRun(detail) }
+        horizon.onFinish = { [weak self] detail in self?.saveRun(detail) }
+    }
+
+    // MARK: - Databáze běhů
+
+    func saveRun(_ detail: RunDetail) {
+        do {
+            try store.save(detail)
+            saveError = nil
+        } catch {
+            saveError = "Běh se nepodařilo uložit: \(error.localizedDescription)"
+        }
+        runs = store.summaries()
+    }
+
+    func deleteRun(_ id: UUID) {
+        store.delete(id)
+        runs = store.summaries()
+    }
+
+    // MARK: - Horizont
+
+    func startBacktest() {
+        guard let jev = makeJev() else { return }
+        loop.stop()
+        newsroom.stop()
+        horizon.startBacktest(config: horizonConfig, jev: jev)
+    }
+
+    func startHorizonLive() {
+        guard let jev = makeJev() else { return }
+        horizon.startLive(config: horizonConfig, jev: jev)
     }
 
     // MARK: - Klíče

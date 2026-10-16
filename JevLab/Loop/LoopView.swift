@@ -106,11 +106,7 @@ struct LoopControls: View {
     @ViewBuilder
     private func controls(model: AppModel) -> some View {
         @Bindable var bindable = model
-        Picker("Coin", selection: $bindable.loopConfig.coin) {
-            ForEach(["HYPE", "BTC", "ETH", "SOL"], id: \.self) { Text($0).tag($0) }
-        }
-        .pickerStyle(.segmented)
-        .frame(maxWidth: 260)
+        InstrumentPicker(coin: $bindable.loopConfig.coin)
         Picker("Délka", selection: $bindable.loopConfig.minutes) {
             Text("5 min").tag(5.0)
             Text("10 min").tag(10.0)

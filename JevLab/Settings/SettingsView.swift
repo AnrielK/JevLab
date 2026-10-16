@@ -76,6 +76,16 @@ struct SettingsView: View {
                     Text("Ceny Hyperliquid, zpravodajské feedy, jedno skutečné Jev volání a rychlost tvého tieru.")
                 }
 
+                Section {
+                    NavigationLink {
+                        StrategyView()
+                    } label: {
+                        Label("Strategie smyčky", systemImage: "slider.horizontal.3")
+                    }
+                } footer: {
+                    Text(model.strategy.make().summary)
+                }
+
                 Section("O aplikaci") {
                     Text("JevLab je jen papírové obchodování: čte veřejná data Hyperliquid a fills simuluje. Nikdy neposílá skutečnou objednávku a nepotřebuje účet na burze.")
                     Text("Není to finanční poradenství. Žádná strategie nemá zaručený zisk.")

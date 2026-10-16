@@ -7,8 +7,7 @@ struct StrategyView: View {
 
     var body: some View {
         @Bindable var bindable = model
-        NavigationStack {
-            Form {
+        Form {
                 Section {
                     Text("Jev volá několikrát za sekundu („buy, 91 %“). Strategie rozhoduje, která volání se stanou obchody. Většina má skončit „hold“: každý obchod něco stojí, takže bot, který obchoduje každé volání, krvácí.")
                         .font(.callout)
@@ -57,8 +56,7 @@ struct StrategyView: View {
                 }
             }
             .formStyle(.grouped)
-            .navigationTitle("Strategie")
-        }
+            .navigationTitle("Strategie smyčky")
     }
 
     private func slider(_ title: String, value: Binding<Double>, range: ClosedRange<Double>, step: Double,

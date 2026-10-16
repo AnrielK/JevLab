@@ -125,7 +125,7 @@ public final class LoopEngine {
     @ObservationIgnored private var inFlight = 0
     @ObservationIgnored private var generation = 0
     /// Zavolá se s hotovým během (pro uložení do databáze).
-    @ObservationIgnored public var onFinish: ((RunDetail) -> Void)?
+    @ObservationIgnored public var onFinish: (@MainActor (RunDetail) -> Void)?
     /// Všechna zodpovězená volání běhu (UI drží jen posledních 300).
     @ObservationIgnored private var archive: [CallRecord] = []
 

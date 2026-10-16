@@ -46,7 +46,7 @@ public final class HorizonEngine {
     public var minConf: Double = 0.6
 
     /// Zavolá se s hotovým během (pro uložení do databáze).
-    @ObservationIgnored public var onFinish: ((RunDetail) -> Void)?
+    @ObservationIgnored public var onFinish: (@MainActor (RunDetail) -> Void)?
     @ObservationIgnored private var task: Task<Void, Never>?
     @ObservationIgnored private var saved = false
 

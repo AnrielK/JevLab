@@ -24,10 +24,12 @@ struct RootView: View {
         TabView {
             LoopView()
                 .tabItem { Label("Smyčka", systemImage: "waveform.path.ecg") }
+            HorizonView()
+                .tabItem { Label("Horizont", systemImage: "chart.xyaxis.line") }
             NewsroomView()
                 .tabItem { Label("Newsroom", systemImage: "newspaper") }
-            StrategyView()
-                .tabItem { Label("Strategie", systemImage: "slider.horizontal.3") }
+            HistoryView()
+                .tabItem { Label("Historie", systemImage: "clock.arrow.circlepath") }
             SettingsView()
                 .tabItem { Label("Nastavení", systemImage: "key") }
         }

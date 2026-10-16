@@ -1,5 +1,12 @@
 # Změny
 
+## 0.3.0 · 2026-10-16
+
+- Horizont: Jev odhaduje směr na 5 min / 15 min / 1 h ze svíčkových featur. Backtest na historii (až ~5000 svíček, souběžná volání, odhad ceny) a živý režim na zavření svíček.
+- US akciové perpy na Hyperliquid (HIP-3, `xyz:NVDA` apod.) ve smyčce i horizontu, s 2× poplatky a ukazatelem otevřené burzy v USA.
+- Historie: databáze běhů (JSON v Application Support) s každým rozhodnutím, featurami a výsledkem. Analýza: výsledek po poplatcích pro libovolný práh, kalibrace jistoty, sweep prahů, walk-forward test, porovnání s „kupit a držet“, export CSV.
+- Strategie smyčky přesunuta do Nastavení; nové záložky Horizont a Historie.
+
 ## 0.2.0 · 2026-10-16
 
 - Claude mozek ve Smyčce: Claude (přes Vercel AI Gateway) každých 5/10/15 min přečte souhrn trhu z Hyperliquid a poslední titulky a nastaví bias long/short/flat. Jev obchoduje jen tím směrem, při změně směru se pozice zavře. Karta s biasem, jistotou, zdůvodněním a tlačítkem „Přečíst teď“.
