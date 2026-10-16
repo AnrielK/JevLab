@@ -1,5 +1,10 @@
 # Změny
 
+## 0.6.1 · 2026-10-16
+
+- Stálé názvy featur: vzdálenost od maxima/minima vždy z 50 svíček a průměr z 10 svíček (dřív se název měnil podle dostupné historie, např. 36bar/42bar). Nižší rámec se stahuje s delší rezervou.
+- CSV export obsahuje sloupec `claude_bias`.
+
 ## 0.6.0 · 2026-10-16
 
 - Indikátory ve featurách pro Jev i Clauda: MA 20/50/200 (vzdálenost a sklon MA20), RSI 14, ATR 14, vzdálenost od 50svíčkového maxima/minima. Na vyšších rámcích MA 10/20, RSI a ATR.

@@ -201,7 +201,7 @@ public enum Features {
         let n = min(10, closed.count)
         let recent = closed.suffix(n)
         let mean = recent.reduce(0) { $0 + $1.close } / Double(n)
-        out[p + "price_vs_\(n)_bar_mean_bps"] = rounded(bps(mean, price), 2)
+        if n == 10 { out[p + "price_vs_10_bar_mean_bps"] = rounded(bps(mean, price), 2) }
         let r = closed.suffix(min(12, closed.count))
         let hi = max(r.map(\.high).max() ?? price, price)
         let lo = min(r.map(\.low).min() ?? price, price)

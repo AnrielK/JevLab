@@ -157,7 +157,7 @@ public final class HorizonEngine {
     private func loadContext(fromMs: Int64) async -> [Timeframe: [Hyperliquid.Candle]] {
         var out: [Timeframe: [Hyperliquid.Candle]] = [:]
         for tf in config.contextTimeframes {
-            let back: Int64 = tf.minutes > config.horizon.minutes ? 60 : 30
+            let back: Int64 = 60
             let start = fromMs - back * Int64(tf.minutes) * 60_000
             if let list = try? await Hyperliquid.candles(coin: config.coin, interval: tf.rawValue, startMs: start) {
                 out[tf] = list

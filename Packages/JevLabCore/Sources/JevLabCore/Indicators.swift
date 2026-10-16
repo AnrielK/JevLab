@@ -123,15 +123,15 @@ public enum Indicators {
         if let r = rsi(c, end: end) { f[p + "rsi14"] = rounded(r, 1) }
         let atrValue = atr(c, end: end)
         if let a = atrValue { f[p + "atr14_bps"] = rounded(1e4 * a / price, 1) }
-        let win = min(50, end + 1)
-        if win >= 10 {
+        // pevné okno 50 svíček: když historie nestačí, pole se vynechá (názvy featur zůstávají stálé)
+        if end + 1 >= 50 {
             var hi = -Double.infinity, lo = Double.infinity
-            for k in (end - win + 1)...end {
+            for k in (end - 49)...end {
                 hi = max(hi, c[k].high)
                 lo = min(lo, c[k].low)
             }
-            f[p + "dist_from_\(win)bar_high_bps"] = rounded(bps(hi, price), 1)
-            f[p + "dist_from_\(win)bar_low_bps"] = rounded(bps(lo, price), 1)
+            f[p + "dist_from_50bar_high_bps"] = rounded(bps(hi, price), 1)
+            f[p + "dist_from_50bar_low_bps"] = rounded(bps(lo, price), 1)
         }
         guard includeSR else { return f }
         let tol = (atrValue ?? price * 0.005) * 0.5

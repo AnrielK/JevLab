@@ -131,7 +131,7 @@ public final class RunStore: @unchecked Sendable {
     public static func csv(_ detail: RunDetail) -> String {
         let keys = Array(Set(detail.records.flatMap { $0.state?.keys.map { $0 } ?? [] })).sorted()
         let iso = ISO8601DateFormatter()
-        var lines = [(["time", "side", "conf", "price", "ret_next_bps", "action"] + keys).joined(separator: ",")]
+        var lines = [(["time", "side", "conf", "price", "ret_next_bps", "action", "claude_bias"] + keys).joined(separator: ",")]
         for r in detail.records {
             var row = [
                 iso.string(from: r.date),
@@ -140,6 +140,7 @@ public final class RunStore: @unchecked Sendable {
                 String(r.price),
                 r.retNextBps.map { String($0) } ?? "",
                 "\"\((r.action ?? "").replacingOccurrences(of: "\"", with: "'"))\"",
+                r.bias?.rawValue ?? "",
             ]
             for k in keys { row.append(r.state?[k].map { String($0) } ?? "") }
             lines.append(row.joined(separator: ","))
