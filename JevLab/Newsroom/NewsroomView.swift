@@ -28,6 +28,7 @@ struct NewsroomView: View {
                     ScoreBoard()
                 }
                 .padding(14)
+                .frame(width: geo.size.width)
             }
         }
         .background(Theme.background)

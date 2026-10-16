@@ -22,6 +22,7 @@ struct LoopView: View {
                     }
                 }
                 .padding(14)
+                .frame(width: geo.size.width)
             }
         }
         .background(Theme.background)
@@ -251,16 +252,18 @@ struct DecisionDots: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        let recent = Array(model.loop.answered.suffix(60))
-        HStack(spacing: 3) {
-            ForEach(recent) { d in
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(d.status == .ok ? Theme.color(for: d.side) : Theme.late)
-                    .frame(width: 6, height: 14)
+        // Kreslí se přes Canvas: šířka se řídí dostupným místem, nikdy nerozšíří stránku.
+        let answered = model.loop.answered
+        Canvas { ctx, size in
+            let step: CGFloat = 9
+            let n = max(0, Int(size.width / step))
+            for (i, d) in answered.suffix(n).enumerated() {
+                let rect = CGRect(x: CGFloat(i) * step, y: 1, width: 6, height: 14)
+                let color = d.status == .ok ? Theme.color(for: d.side) : Theme.late
+                ctx.fill(Path(roundedRect: rect, cornerRadius: 2), with: .color(color))
             }
-            Spacer(minLength: 0)
         }
+        .frame(maxWidth: .infinity)
         .frame(height: 16)
-        .clipped()
     }
 }

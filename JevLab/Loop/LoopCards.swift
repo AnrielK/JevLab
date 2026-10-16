@@ -53,7 +53,8 @@ struct PriceChart: View {
                     RuleMark(y: .value("Limit", o.px))
                         .foregroundStyle(o.buying ? Theme.good : Theme.bad)
                         .lineStyle(StrokeStyle(lineWidth: 1.2, dash: [6, 4]))
-                        .annotation(position: .top, alignment: .trailing) {
+                        .annotation(position: .top, alignment: .trailing,
+                                    overflowResolution: .init(x: .fit(to: .chart), y: .disabled)) {
                             Text("limit \(o.buying ? "buy" : "sell") \(Fmt.px(o.px))")
                                 .font(.system(size: 10, weight: .semibold, design: .monospaced))
                                 .foregroundStyle(o.buying ? Theme.good : Theme.bad)

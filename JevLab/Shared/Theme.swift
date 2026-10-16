@@ -130,6 +130,9 @@ struct ErrorBanner: View {
         }
         if detail.contains("HTTP 429") { return "Free tier je vytížený: počkej, nebo přidej kredity v AI Gateway." }
         if detail.contains("HTTP 402") { return "Došly kredity v AI Gateway." }
+        if detail.localizedCaseInsensitiveContains("timed out") {
+            return "Jev neodpověděl do 5 s (slabší signál nebo vytížený server). Občas se to stane, smyčka pokračuje dál."
+        }
         if detail.contains("HTTP 404") { return "Endpoint nenalezen: Jev na tomhle klíči nemusí být dostupný." }
         return "Pošli tenhle text a podívám se na to."
     }

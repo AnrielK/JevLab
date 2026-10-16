@@ -1,5 +1,11 @@
 # Změny
 
+## 0.1.2 · 2026-10-16
+
+- Oprava: na iPhonu na výšku se stránka smyčky roztahovala doprava (pruh teček měl pevnou šířku). Pruh se teď kreslí podle dostupné šířky a obsah záložek je ukotvený na šířku displeje.
+- Popisek ležící limitní objednávky v grafu nepřetéká mimo graf.
+- Nápověda k chybě „request timed out“.
+
 ## 0.1.1 · 2026-10-16
 
 - Smyčka i Newsroom teď ukazují skutečnou chybu Jev volání (HTTP kód a text) s nápovědou, co s ní dělat. Dřív se chyby jen tiše počítaly.
