@@ -36,7 +36,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Jev klíč")
                 } footer: {
-                    Text("Klíč získáš na vercel.com/dashboard → AI Gateway → API Keys → Create key. Free tier funguje, ale pomalu (zhruba jedno volání za 2 s); $5 kreditů v AI Gateway dá plnou rychlost. Klíč zůstává jen v Keychainu tohoto zařízení a nikde se nezobrazuje.")
+                    Text("Klíč získáš na vercel.com/dashboard → AI Gateway → API Keys → Create key. Vercel vyžaduje platební kartu a Jev funguje jen s placenými kredity v AI Gateway. Doporučuji klíči nastavit budget. Klíč zůstává jen v Keychainu tohoto zařízení a nikde se nezobrazuje.")
                 }
 
                 Section {

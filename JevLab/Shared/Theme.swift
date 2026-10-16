@@ -119,6 +119,12 @@ struct ErrorBanner: View {
     }
 
     static func hint(for detail: String) -> String {
+        if detail.contains("Free tier users do not have access") {
+            return "Jev je na Vercelu jen pro placené kredity: AI Gateway → Credits → dobít (např. $5), pak to zkus znovu."
+        }
+        if detail.contains("valid credit card") {
+            return "Vercel chce u týmu platební kartu: Settings → Billing → Payment Method."
+        }
         if detail.contains("HTTP 401") || detail.contains("HTTP 403") {
             return "Klíč byl odmítnut: zkontroluj, že je celý (začíná vck_), a že má Vercel tým kartu nebo kredity."
         }

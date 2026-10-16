@@ -4,6 +4,7 @@
 
 - Smyčka i Newsroom teď ukazují skutečnou chybu Jev volání (HTTP kód a text) s nápovědou, co s ní dělat. Dřív se chyby jen tiše počítaly.
 - Nový ukazatel „chyby“ ve statistikách smyčky, statistiky se na iPhonu zalamují místo useknutí.
+- Konkrétní nápověda pro chyby Vercelu (chybějící karta, Jev jen pro placené kredity); README a Nastavení opravují tvrzení, že Jev funguje na free tieru.
 - U titulků v newsroomu je vidět i den („včera 14:07“), aby bylo jasné, že jde o replay.
 
 ## 0.1.0 · 2026-10-16

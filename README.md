@@ -15,7 +15,7 @@ Nativní aplikace pro **macOS a iPhone** postavená podle *Jev Starteru*: živý
 
 ## Jev klíč
 
-vercel.com/dashboard → **AI Gateway → API Keys → Create key**. Free tier funguje, ale pomalu (cca jedno volání za 2 s). $5 kreditů v AI Gateway dá plnou rychlost. Každé volání stojí zlomek centu.
+vercel.com/dashboard → **AI Gateway → API Keys → Create key**. Vercel vyžaduje u týmu platební kartu a **Jev je dostupný jen s placenými kredity** v AI Gateway (free tier vrací HTTP 403 „Free tier users do not have access to this model“, na rozdíl od tvrzení v Jev Starteru). Doporučeno nastavit klíči budget.
 
 ## Struktura
 
