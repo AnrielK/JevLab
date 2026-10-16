@@ -8,4 +8,5 @@
 - Výpočty (`MarketBook.snapshot`, `PaperBook`, `JevNormaliser`, `News.judgeCall`) odpovídají Python referenci v Jev Starteru; při změně aktualizovat testy.
 - Databáze běhů: `RunStore` (JSON v Application Support/JevLab/runs, `index.json` + soubor na běh). Analýza (`Analysis`) se počítá z uložených rozhodnutí, nikdy nevolá Jev.
 - Akciové perpy jsou HIP-3 trhy (`xyz:TICKER`): REST volání potřebují `dex`, poplatky 2×.
+- Indikátory a S/R (`Indicators`) i kontext z vyšších rámců smí používat jen svíčky uzavřené v okamžiku rozhodnutí; testy to hlídají (`testPivotsNeverUseFutureBars`, `testWeeklyContextUsesOnlyClosedBars`).
 - Každá verze dostane záznam v ZMENY.md.

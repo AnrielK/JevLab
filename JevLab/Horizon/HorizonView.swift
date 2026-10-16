@@ -22,6 +22,7 @@ struct HorizonView: View {
                                         minConf: Binding(get: { engine.minConf }, set: { engine.minConf = $0 }),
                                         mode: Binding(get: { engine.simMode }, set: { engine.simMode = $0 }))
                         if let last = engine.records.last(where: { $0.state != nil }), let st = last.state {
+                            SRCard(state: st, tradingLabel: engine.config.horizon.shortLabel)
                             StateCard(state: st, date: last.date)
                         }
                         DecisionList(records: engine.records, minConf: engine.minConf)
@@ -294,6 +295,49 @@ struct HorizonClaudeCard: View {
             Text(state.reason).font(.callout).fixedSize(horizontal: false, vertical: true)
             Text("\(state.model)\(state.ms.map { " · \($0) ms" } ?? "")\(errors > 0 ? " · \(errors)× chyba" : "")")
                 .font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary)
+        }
+    }
+}
+
+/// Nejbližší support a rezistence podle rámců (u posledního rozhodnutí).
+struct SRCard: View {
+    let state: [String: Double]
+    let tradingLabel: String
+
+    private var rows: [(label: String, prefix: String)] {
+        var out: [(label: String, prefix: String)] = [(label: tradingLabel + " (obchodní)", prefix: "")]
+        for tf in Timeframe.allCases { out.append((label: tf.label, prefix: tf.prefix)) }
+        return out.filter { state[$0.prefix + "support_dist_bps"] != nil || state[$0.prefix + "resistance_dist_bps"] != nil }
+    }
+
+    var body: some View {
+        Card("Support a rezistence") {
+            if rows.isEmpty {
+                Text("Zatím málo historie na nalezení úrovní.").font(.footnote).foregroundStyle(.secondary)
+            }
+            ForEach(rows, id: \.prefix) { row in
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(row.label).font(.caption.weight(.semibold)).foregroundStyle(Theme.jev)
+                    line("rezistence", prefix: row.prefix + "resistance", color: Theme.bad, sign: "+")
+                    line("support", prefix: row.prefix + "support", color: Theme.good, sign: "−")
+                }
+            }
+            Text("Úrovně = shluky swing maxim/minim; vzdálenost v % a v násobcích ATR (běžný pohyb jedné svíčky daného rámce), dotyky = kolikrát se od ní cena otočila.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private func line(_ name: String, prefix: String, color: Color, sign: String) -> some View {
+        if let bps = state[prefix + "_dist_bps"] {
+            HStack {
+                Text(name).foregroundStyle(color).frame(width: 80, alignment: .leading)
+                Text(sign + String(format: "%.2f %%", abs(bps) / 100))
+                Spacer()
+                if let atr = state[prefix + "_dist_atr"] { Text(String(format: "%.1f ATR", atr)).foregroundStyle(.secondary) }
+                if let t = state[prefix + "_touches"] { Text("\(Int(t))× dotyk").foregroundStyle(.secondary) }
+            }
+            .font(.system(size: 12, design: .monospaced))
         }
     }
 }

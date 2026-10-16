@@ -1,5 +1,12 @@
 # Změny
 
+## 0.6.0 · 2026-10-16
+
+- Indikátory ve featurách pro Jev i Clauda: MA 20/50/200 (vzdálenost a sklon MA20), RSI 14, ATR 14, vzdálenost od 50svíčkového maxima/minima. Na vyšších rámcích MA 10/20, RSI a ATR.
+- Support a rezistence: swing maxima/minima (potvrzená až uzavřenými svíčkami), shlukovaná do úrovní s počtem dotyků; nejbližší support pod cenou a rezistence nad ní, vzdálenost v bps i v ATR. Na obchodním rámci a na vyšších rámcích (týden, měsíc).
+- Backtest si stahuje 200 svíček historie navíc, aby indikátory platily od prvního rozhodnutí.
+- Karta „Support a rezistence“ v Horizontu.
+
 ## 0.5.0 · 2026-10-16
 
 - Claude v Horizontu (backtest i živě): každých N svíček nastaví směr long/short/flat ze stejných relativních čísel, jaká vidí Jev (bez cen, dat a zpráv, aby z historie nepoznal období). Ke každému rozhodnutí se ukládá Jev směr i Claudův bias.
