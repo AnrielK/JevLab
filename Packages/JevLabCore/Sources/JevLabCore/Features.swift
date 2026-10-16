@@ -236,6 +236,8 @@ public enum Features {
             let higher = tf.minutes > horizon.minutes
             for (k, v) in Features.context(tf, candles: list, tMs: tMs, price: candles[i].close, includeSR: higher) { s[k] = v }
         }
+        // hotové kombinace (S/R + RSI + trend), aby je Jev nemusel odvozovat
+        for (k, v) in Setups.flags(s) { s[k] = v }
         return s
     }
 

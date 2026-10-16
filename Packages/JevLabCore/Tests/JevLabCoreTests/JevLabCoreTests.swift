@@ -501,3 +501,41 @@ final class IndicatorTests: XCTestCase {
         XCTAssertTrue(Indicators.pivots(c, end: 13, k: 3, lookback: 50).contains(c[10].high))
     }
 }
+
+final class RulesAndModelTests: XCTestCase {
+    func testSetupsAndRuleTargets() {
+        let bounce: [String: Double] = ["support_dist_atr": 0.4, "rsi14": 32]
+        XCTAssertEqual(Setups.supportBounce(bounce), 1)
+        XCTAssertEqual(Setups.supportBounce(["resistance_dist_atr": 0.8, "rsi14": 65]), -1)
+        XCTAssertEqual(Setups.supportBounce(["support_dist_atr": 2.0, "rsi14": 32]), 0)
+        XCTAssertEqual(Setups.flags(bounce)["setup_support_bounce"], 1)
+        XCTAssertNil(Setups.flags(bounce)["setup_weekly_pullback"])
+
+        // signál long, pak 2 svíčky bez signálu → při hold 2 se po druhé zavře
+        let recs = (0..<5).map { i in
+            CallRecord(id: i, t: Double(i), side: nil, conf: nil, price: 100, retNextBps: 10,
+                       state: i == 0 ? bounce : ["support_dist_atr": 3, "rsi14": 50])
+        }
+        let rule = RuleStrategy.all.first { $0.id == "bounce" }!
+        XCTAssertEqual(Analysis.ruleTargets(recs, rule: rule, hold: 2), [1, 1, 0, 0, 0])
+        let r = Analysis.simulate(recs, targets: [1, 1, 0, 0, 0], feeRate: 0.0001)
+        XCTAssertEqual(r.grossBps, 20, accuracy: 1e-9)
+        XCTAssertEqual(r.feesBps, 2, accuracy: 1e-9)
+    }
+
+    func testModelLearnsObviousSignal() throws {
+        // featura "x" přesně určuje směr zítřka, "noise" je šum
+        var recs: [CallRecord] = []
+        for i in 0..<200 {
+            let up = (i * 7) % 3 != 0
+            let noise = Double((i * 13) % 17) - 8
+            recs.append(CallRecord(id: i, t: Double(i), side: .buy, conf: 0.6, price: 100,
+                                   retNextBps: up ? 20 : -20, state: ["x": up ? 1 : -1, "noise": noise]))
+        }
+        let rep = try XCTUnwrap(FeatureModel.walkForward(recs, feeRate: 0.0001))
+        XCTAssertEqual(rep.trainCount, 100)
+        XCTAssertGreaterThan(rep.testAccuracy, 0.95)
+        XCTAssertEqual(rep.topWeights.first?.feature, "x")
+        XCTAssertGreaterThan(rep.test.netBps, 0)
+    }
+}
