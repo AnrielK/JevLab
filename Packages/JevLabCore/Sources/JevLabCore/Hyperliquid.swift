@@ -42,8 +42,27 @@ public enum Hyperliquid {
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
         let (data, resp) = try await URLSession.shared.data(for: req)
         let status = (resp as? HTTPURLResponse)?.statusCode ?? 0
-        guard status == 200 else { throw URLError(.badServerResponse) }
+        guard status == 200 else {
+            let text = String(data: data.prefix(200), encoding: .utf8) ?? ""
+            throw JevError(status: status, message: "Hyperliquid (\(body["type"] as? String ?? "?")): \(text)")
+        }
         return try JSONSerialization.jsonObject(with: data)
+    }
+
+    /// Názvy HIP-3 burz (dexů) nasazených na Hyperliquid, např. "xyz".
+    public static func perpDexNames() async throws -> [String] {
+        let arr = (try await info(["type": "perpDexs"])) as? [Any] ?? []
+        return arr.compactMap { ($0 as? [String: Any])?["name"] as? String }
+    }
+
+    /// Obchodovatelné trhy jednoho HIP-3 dexu ve tvaru "dex:TICKER" (bez delistovaných).
+    public static func perpNames(dex: String) async throws -> [String] {
+        let d = (try await info(["type": "meta", "dex": dex])) as? [String: Any] ?? [:]
+        let universe = d["universe"] as? [[String: Any]] ?? []
+        return universe.compactMap { u -> String? in
+            guard let name = u["name"] as? String, (u["isDelisted"] as? Bool) != true else { return nil }
+            return name.contains(":") ? name : "\(dex):\(name)"
+        }
     }
 
     /// Střední ceny všech coinů.

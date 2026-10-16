@@ -92,6 +92,28 @@ public enum BrainLogic {
         return nil
     }
 
+    /// Prompt pro svíčkový režim: Claude dostane stejná relativní čísla jako Jev (bez cen, dat a zpráv),
+    /// aby backtest nemohl prozradit, o jaké období jde.
+    public static func horizonPrompt(state: [String: Double], horizon: Horizon, everyBars: Int) -> String {
+        let data = (try? JSONSerialization.data(withJSONObject: state, options: [.prettyPrinted, .sortedKeys]))
+            .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+        let span = everyBars * horizon.minutes
+        let spanText = span >= 1440 ? "\(span / 1440) day(s)" : span >= 60 ? "\(span / 60) hour(s)" : "\(span) minutes"
+        return """
+        You are the portfolio manager for a small, cautious trading bot (paper trading) on one market.
+        A fast AI decides on every \(horizon.shortLabel) bar whether to be long or short, but it can only trade in the direction you allow.
+        Decide the bias for the next \(spanText): "long" (only long positions allowed), "short" (only short allowed),
+        or "flat" (stay out). Base it on trend and momentum across the timeframes below. Choose "flat" only when signals
+        genuinely conflict or the market is directionless.
+
+        Market data (relative numbers only; bps = 0.01 %; fields prefixed weekly_/monthly_/4h_ etc. describe that timeframe,
+        unprefixed fields describe the \(horizon.shortLabel) trading timeframe):
+        \(data)
+
+        Reply with ONLY a JSON object: {"bias": "long" | "short" | "flat", "confidence": 0.0-1.0, "reason": "one short sentence in Czech"}
+        """
+    }
+
     public static func prompt(minutes: Double, summary: MarketSummary, headlines: [String]) -> String {
         let data = (try? JSONSerialization.data(withJSONObject: summary.json, options: [.prettyPrinted, .sortedKeys]))
             .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"

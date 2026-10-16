@@ -409,3 +409,39 @@ final class ContextTests: XCTestCase {
         XCTAssertLessThanOrEqual(Horizon.d1.maxDaysWithContext, Horizon.d1.maxDays)
     }
 }
+
+final class ClaudeModeTests: XCTestCase {
+    func testSimulationModes() {
+        let recs: [CallRecord] = [
+            CallRecord(id: 0, t: 1, side: .buy, conf: 0.9, price: 100, retNextBps: 10, bias: .long),
+            CallRecord(id: 1, t: 2, side: .sell, conf: 0.9, price: 100, retNextBps: -10, bias: .long),
+            CallRecord(id: 2, t: 3, side: .sell, conf: 0.9, price: 100, retNextBps: -10, bias: .short),
+            CallRecord(id: 3, t: 4, side: .buy, conf: 0.9, price: 100, retNextBps: 5, bias: .flat),
+        ]
+        // Jev sám: +10, +10, +10, +5 = 35 bps; změny: 0→1, 1→-1, -1→1 = 3 změny, 5 stran
+        let jev = Analysis.simulate(recs, minConf: 0.6, feeRate: 0.0001, mode: .jev)
+        XCTAssertEqual(jev.grossBps, 35, accuracy: 1e-9)
+        XCTAssertEqual(jev.feesBps, 5, accuracy: 1e-9)
+        // Jev + Claude: long +10, (proti biasu) flat 0, short +10, flat 0 = 20 bps; strany 1+1+1+1 = 4
+        let both = Analysis.simulate(recs, minConf: 0.6, feeRate: 0.0001, mode: .jevClaude)
+        XCTAssertEqual(both.grossBps, 20, accuracy: 1e-9)
+        XCTAssertEqual(both.feesBps, 4, accuracy: 1e-9)
+        // Claude sám: long +10, long -10, short +10, flat 0 = 10 bps; strany 1+2+1 = 4
+        let claude = Analysis.simulate(recs, minConf: 0.6, feeRate: 0.0001, mode: .claude)
+        XCTAssertEqual(claude.grossBps, 10, accuracy: 1e-9)
+        XCTAssertEqual(claude.feesBps, 4, accuracy: 1e-9)
+        XCTAssertTrue(Analysis.hasBias(recs))
+    }
+
+    func testHorizonPromptHasNoPrices() {
+        let p = BrainLogic.horizonPrompt(state: ["return_last_bar_bps": 12.5, "weekly_position_in_range": 0.4], horizon: .d1, everyBars: 1)
+        XCTAssertTrue(p.contains("1 day(s)"))
+        XCTAssertTrue(p.contains("weekly_position_in_range"))
+        var cfg = HorizonConfig()
+        cfg.horizon = .d1
+        cfg.days = 30
+        cfg.claude = true
+        XCTAssertEqual(cfg.claudeEvery, 1)
+        XCTAssertEqual(cfg.claudeCalls, cfg.backtestBars)
+    }
+}

@@ -14,9 +14,12 @@ public struct CallRecord: Codable, Sendable, Identifiable, Equatable {
     /// Co Jev viděl (featury), aby se z toho dalo později učit.
     public var state: [String: Double]?
     public var action: String?
+    /// Claudův směr platný v okamžiku rozhodnutí (nil = Claude nebyl zapnutý / ještě neodpověděl).
+    public var bias: Bias?
 
     public init(id: Int, t: Double, side: Side?, conf: Double?, price: Double, retNextBps: Double? = nil,
-                state: [String: Double]? = nil, action: String? = nil) {
+                state: [String: Double]? = nil, action: String? = nil, bias: Bias? = nil) {
+        self.bias = bias
         self.id = id
         self.t = t
         self.side = side
@@ -81,18 +84,44 @@ public struct WalkForward: Sendable, Equatable {
     public var testCount: Int
 }
 
+/// Kdo rozhoduje o pozici při simulaci.
+public enum SimMode: String, CaseIterable, Sendable {
+    /// Jen Jev: směr Jev při jistotě ≥ práh, jinak flat.
+    case jev
+    /// Jev jen ve směru Claudova biasu (flat bias = mimo trh, bez biasu = mimo trh).
+    case jevClaude
+    /// Jen Claude: pozice = bias (long/short/flat), Jev se ignoruje.
+    case claude
+
+    public var label: String {
+        switch self {
+        case .jev: return "Jev sám"
+        case .jevClaude: return "Jev + Claude"
+        case .claude: return "Claude sám"
+        }
+    }
+}
+
 /// „Učení“ z databáze: všechno se počítá z uložených rozhodnutí, bez dalších Jev volání.
 public enum Analysis {
     public static let thresholds: [Double] = stride(from: 0.5, through: 0.951, by: 0.05).map { rounded($0, 2) }
 
     /// Pozice na každý krok: Jev side, když jistota ≥ minConf, jinak flat. Poplatek za každou změnu pozice.
     /// `feeRate` je poplatek na stranu (např. 0.00045 = 4.5 bps), přechod long→short platí dvě strany.
-    public static func simulate(_ records: [CallRecord], minConf: Double, feeRate: Double, notional: Double = 1000) -> SimResult {
+    public static func simulate(_ records: [CallRecord], minConf: Double, feeRate: Double, notional: Double = 1000,
+                                mode: SimMode = .jev) -> SimResult {
         var r = SimResult()
         var pos = 0.0
         for rec in records {
             guard let ret = rec.retNextBps else { continue }
-            let target: Double = (rec.side != nil && (rec.conf ?? 0) >= minConf) ? rec.sign : 0
+            let jev: Double = (rec.side != nil && (rec.conf ?? 0) >= minConf) ? rec.sign : 0
+            let claude: Double = rec.bias == .long ? 1 : rec.bias == .short ? -1 : 0
+            let target: Double
+            switch mode {
+            case .jev: target = jev
+            case .jevClaude: target = (claude != 0 && jev == claude) ? jev : 0
+            case .claude: target = claude
+            }
             if target != pos {
                 r.feesBps += abs(target - pos) * feeRate * 1e4
                 r.trades += 1
@@ -138,7 +167,8 @@ public enum Analysis {
     }
 
     /// Poctivý test: práh se vybere na první polovině, vyhodnotí na druhé.
-    public static func walkForward(_ records: [CallRecord], feeRate: Double, defaultThreshold: Double) -> WalkForward? {
+    public static func walkForward(_ records: [CallRecord], feeRate: Double, defaultThreshold: Double,
+                                   mode: SimMode = .jev) -> WalkForward? {
         let done = records.filter { $0.retNextBps != nil }
         guard done.count >= 20 else { return nil }
         let mid = done.count / 2
@@ -147,16 +177,28 @@ public enum Analysis {
         var best = thresholds[0]
         var bestNet = -Double.infinity
         for th in thresholds {
-            let net = simulate(train, minConf: th, feeRate: feeRate).netBps
+            let net = simulate(train, minConf: th, feeRate: feeRate, mode: mode).netBps
             if net >= bestNet {
                 bestNet = net
                 best = th
             }
         }
         return WalkForward(chosen: best, trainNetBps: bestNet,
-                           testNetBps: simulate(test, minConf: best, feeRate: feeRate).netBps,
-                           testDefaultNetBps: simulate(test, minConf: defaultThreshold, feeRate: feeRate).netBps,
+                           testNetBps: simulate(test, minConf: best, feeRate: feeRate, mode: mode).netBps,
+                           testDefaultNetBps: simulate(test, minConf: defaultThreshold, feeRate: feeRate, mode: mode).netBps,
                            testBuyHoldBps: buyHoldBps(test), trainCount: train.count, testCount: test.count)
+    }
+
+    /// Má záznam Claudovy biasy (běh s Claudem)?
+    public static func hasBias(_ records: [CallRecord]) -> Bool {
+        records.contains { $0.bias != nil }
+    }
+
+    /// Výsledek na druhé polovině dat (stejná část jako walk-forward test) pro daný režim a práh.
+    public static func testHalf(_ records: [CallRecord], minConf: Double, feeRate: Double, mode: SimMode) -> SimResult? {
+        let done = records.filter { $0.retNextBps != nil }
+        guard done.count >= 20 else { return nil }
+        return simulate(Array(done[(done.count / 2)...]), minConf: minConf, feeRate: feeRate, mode: mode)
     }
 
     /// Pro tick režim: výsledek každého volání = pohyb ceny do dalšího volání s jinou cenou.

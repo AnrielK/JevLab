@@ -27,6 +27,12 @@ public struct Instrument: Identifiable, Hashable, Sendable, Codable {
     }
     public static let all: [Instrument] = crypto + stocks
 
+    /// Akciové trhy z API (dex "xyz" = TradeXYZ). Vrací tickery, které opravdu existují.
+    public static func loadStocks(dex: String = "xyz") async throws -> [Instrument] {
+        let names = try await Hyperliquid.perpNames(dex: dex)
+        return names.sorted().map { Instrument(coin: $0, isStock: true) }
+    }
+
     public static func find(_ coin: String) -> Instrument {
         all.first { $0.coin == coin } ?? Instrument(coin: coin)
     }
