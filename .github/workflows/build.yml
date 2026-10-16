@@ -16,7 +16,15 @@ jobs:
         with:
           xcode-version: latest-stable
       - name: swift test
-        run: swift test --package-path Packages/JevLabCore
+        run: |
+          set -o pipefail
+          swift test --package-path Packages/JevLabCore 2>&1 | tee swift-test.log
+      - name: Chyby jako anotace
+        if: failure()
+        run: |
+          grep -E "error:|failed|XCTAssert" swift-test.log | head -40 | while IFS= read -r line; do
+            echo "::error::${line}"
+          done
 
   ios:
     name: iOS build

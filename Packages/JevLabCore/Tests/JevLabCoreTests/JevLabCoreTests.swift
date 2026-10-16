@@ -196,7 +196,10 @@ final class FeedParseTests: XCTestCase {
 
 final class BrainTests: XCTestCase {
     func testSummaryMatchesPythonReference() throws {
-        let closes = (0..<49).map { 100 + 0.1 * Double($0) + Double($0 % 3) * 0.05 }
+        let closes: [Double] = (0..<49).map { (i: Int) -> Double in
+            let base: Double = 100 + 0.1 * Double(i)
+            return base + Double(i % 3) * 0.05
+        }
         let s = try XCTUnwrap(BrainLogic.summary(coin: "BTC", closes: closes, change24hPct: 1.5, fundingRatePct: 0.001))
         XCTAssertEqual(s.price, 104.8, accuracy: 1e-9)
         XCTAssertEqual(s.change15mPct, 0.29, accuracy: 1e-9)
