@@ -10,10 +10,28 @@ public enum Hyperliquid {
     public static let takerFee = 0.00045
     public static let makerFee = 0.00015
 
-    public struct Candle: Equatable, Sendable {
+    public struct Candle: Equatable, Sendable, Codable {
         public var openMs: Int64
         public var open: Double
         public var close: Double
+        public var high: Double = 0
+        public var low: Double = 0
+        public var volume: Double = 0
+
+        public init(openMs: Int64, open: Double, close: Double, high: Double = 0, low: Double = 0, volume: Double = 0) {
+            self.openMs = openMs
+            self.open = open
+            self.close = close
+            self.high = high == 0 ? max(open, close) : high
+            self.low = low == 0 ? min(open, close) : low
+            self.volume = volume
+        }
+    }
+
+    /// HIP-3 trh ("xyz:NVDA" → "xyz"), nil pro nativní perpy.
+    public static func dex(of coin: String) -> String? {
+        guard let i = coin.firstIndex(of: ":") else { return nil }
+        return String(coin[..<i])
     }
 
     static func info(_ body: [String: Any], timeout: Double = 10) async throws -> Any {
@@ -30,9 +48,14 @@ public enum Hyperliquid {
 
     /// Střední ceny všech coinů.
     public static func mids(_ coins: [String]) async throws -> [String: Double] {
-        let d = (try await info(["type": "allMids"])) as? [String: Any] ?? [:]
         var out: [String: Double] = [:]
-        for c in coins { if let v = jsonNumber(d[c]) { out[c] = v } }
+        let groups = Dictionary(grouping: coins) { dex(of: $0) ?? "" }
+        for (dexName, list) in groups {
+            var body: [String: Any] = ["type": "allMids"]
+            if !dexName.isEmpty { body["dex"] = dexName }
+            let d = (try await info(body)) as? [String: Any] ?? [:]
+            for c in list { if let v = jsonNumber(d[c]) { out[c] = v } }
+        }
         return out
     }
 
@@ -49,7 +72,8 @@ public enum Hyperliquid {
             for r in batch {
                 guard let t = jsonNumber(r["t"]), let o = jsonNumber(r["o"]), let c = jsonNumber(r["c"]) else { continue }
                 let ms = Int64(t)
-                rows[ms] = Candle(openMs: ms, open: o, close: c)
+                rows[ms] = Candle(openMs: ms, open: o, close: c, high: jsonNumber(r["h"]) ?? 0,
+                                  low: jsonNumber(r["l"]) ?? 0, volume: jsonNumber(r["v"]) ?? 0)
                 lastOpen = max(lastOpen, ms)
             }
             if lastOpen <= cursor || batch.count < 2 { break }

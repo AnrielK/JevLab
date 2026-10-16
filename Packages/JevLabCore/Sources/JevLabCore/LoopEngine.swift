@@ -124,6 +124,10 @@ public final class LoopEngine {
     @ObservationIgnored private var lastTradeT: Double = 0
     @ObservationIgnored private var inFlight = 0
     @ObservationIgnored private var generation = 0
+    /// Zavolá se s hotovým během (pro uložení do databáze).
+    @ObservationIgnored public var onFinish: ((RunDetail) -> Void)?
+    /// Všechna zodpovězená volání běhu (UI drží jen posledních 300).
+    @ObservationIgnored private var archive: [CallRecord] = []
 
     public init() {}
 
@@ -147,6 +151,7 @@ public final class LoopEngine {
         market = MarketBook()
         book = PaperBook(notional: config.notional)
         decisions = []
+        archive = []
         fills = []
         ticks = []
         order = nil
@@ -201,9 +206,28 @@ public final class LoopEngine {
         feed?.stop()
         feed = nil
         if isActive {
+            let wasRunning = status == .running
             refresh()
             status = .done
+            if wasRunning, totalCalls > 0 { onFinish?(makeDetail()) }
         }
+    }
+
+    /// Celý běh pro databázi: každé zodpovězené volání s výsledkem (pohyb do dalšího volání) a všechny obchody.
+    private func makeDetail() -> RunDetail {
+        let records = Analysis.fillTickOutcomes(archive)
+        let mid = market.quote?.mid ?? records.last?.price ?? 0
+        let gross = book.gross(mid: mid)
+        let summary = RunSummary(
+            kind: .tick, started: Date(timeIntervalSince1970: startedAt), ended: Date(), coin: config.coin, horizon: nil,
+            strategy: strategySummary, brain: brain != nil, minConf: nil,
+            feeRate: config.maker ? Instrument.find(config.coin).makerFee : Instrument.find(config.coin).takerFee,
+            notional: config.notional, calls: totalCalls, trades: book.trades,
+            grossUsd: gross, feesUsd: book.fees, netUsd: gross - book.fees,
+            hitRate: scored > 0 ? Double(hits) / Double(scored) : nil, buyHoldBps: Analysis.buyHoldBps(records),
+            note: brain.map { "Claude: \($0.state.bias?.rawValue ?? "–")" })
+        let fills = self.fills.map { FillRecord(t: $0.t, side: $0.side, px: $0.px, kind: $0.kind) }
+        return RunDetail(summary: summary, records: records, fills: fills)
     }
 
     // MARK: - Smyčka
@@ -272,7 +296,7 @@ public final class LoopEngine {
             through = through || (o.buying ? q.ask < o.px : q.bid > o.px)
         }
         if through {
-            book.fill(target: o.target, px: o.px, feeRate: Hyperliquid.makerFee)
+            book.fill(target: o.target, px: o.px, feeRate: Instrument.find(config.coin).makerFee)
             appendFill(LoopFill(t: now, side: o.buying ? .buy : .sell, px: o.px, kind: "limit", call: o.call, waited: now - o.t))
             order = nil
             lastTradeT = now
@@ -344,6 +368,10 @@ public final class LoopEngine {
         }
         decisions.append(rec)
         if decisions.count > 300 { decisions.removeFirst(decisions.count - 300) }
+        if rec.status == .ok || rec.status == .late {
+            archive.append(CallRecord(id: rec.block, t: rec.t, side: rec.side, conf: rec.conf, price: rec.mid,
+                                      state: rec.state, action: rec.action))
+        }
     }
 
     private func decide(_ rec: LoopDecision, _ now: MarketSnapshot) -> String {
@@ -368,7 +396,7 @@ public final class LoopEngine {
             return "limit \(buying ? "buy" : "sell") @ \(Fmt.px(px))"
         }
         let px = buying ? now.ask : now.bid
-        book.fill(target: want, px: px, feeRate: Hyperliquid.takerFee)
+        book.fill(target: want, px: px, feeRate: Instrument.find(config.coin).takerFee)
         appendFill(LoopFill(t: nowSeconds(), side: buying ? .buy : .sell, px: px, kind: "market", call: rec.block, waited: 0))
         lastTradeT = nowSeconds()
         return "market \(choice.label) @ \(Fmt.px(px))"

@@ -158,7 +158,9 @@ public struct ClaudeClient: Sendable {
 extension Hyperliquid {
     /// Funding (v %) a 24h změna (v %) pro coin z metaAndAssetCtxs.
     public static func assetContext(coin: String) async throws -> (fundingPct: Double?, change24hPct: Double?) {
-        guard let arr = (try await info(["type": "metaAndAssetCtxs"])) as? [Any], arr.count == 2,
+        var body: [String: Any] = ["type": "metaAndAssetCtxs"]
+        if let d = dex(of: coin) { body["dex"] = d }
+        guard let arr = (try await info(body)) as? [Any], arr.count == 2,
               let meta = arr[0] as? [String: Any], let universe = meta["universe"] as? [[String: Any]],
               let ctxs = arr[1] as? [[String: Any]],
               let i = universe.firstIndex(where: { ($0["name"] as? String) == coin }), i < ctxs.count else {

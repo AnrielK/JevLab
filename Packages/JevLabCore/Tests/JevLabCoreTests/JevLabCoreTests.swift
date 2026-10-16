@@ -231,3 +231,135 @@ final class BrainTests: XCTestCase {
         XCTAssertNil(BrainLogic.gate(bias: .short, want: -1, position: 0))
     }
 }
+
+final class HorizonTests: XCTestCase {
+    func makeCandles() -> [Hyperliquid.Candle] {
+        var out: [Hyperliquid.Candle] = []
+        for i in 0..<30 {
+            let o: Double = 100 + 0.3 * Double(i) + Double(i % 4) * 0.2
+            let c: Double = o + Double((i % 3) - 1) * 0.15
+            let h: Double = max(o, c) + 0.1 + Double(i % 2) * 0.05
+            let l: Double = min(o, c) - 0.1
+            let v: Double = 10 + Double(i % 5) * 2
+            out.append(Hyperliquid.Candle(openMs: Int64(i) * 3_600_000, open: o, close: c, high: h, low: l, volume: v))
+        }
+        return out
+    }
+
+    func testFeaturesMatchPythonReference() throws {
+        let s = try XCTUnwrap(Features.state(candles: makeCandles(), at: 25, horizon: .h1))
+        let expected: [String: Double] = [
+            "bar_minutes": 60,
+            "return_last_bar_bps": 60.72,
+            "return_3_bars_bps": 65.42,
+            "return_12_bars_bps": 345.82,
+            "volatility_20_bars_bps": 39.85,
+            "position_in_20_bar_range": 0.975,
+            "volume_vs_20_bar_avg": 0.71,
+            "close_vs_20_bar_mean_bps": 262.76,
+            "last_bar_body_ratio": 0,
+        ]
+        XCTAssertEqual(Set(s.keys), Set(expected.keys))
+        for (k, v) in expected { XCTAssertEqual(s[k] ?? .nan, v, accuracy: 0.011, k) }
+        XCTAssertNil(Features.state(candles: makeCandles(), at: 5, horizon: .h1))
+    }
+
+    func testClosedCandlesDropFormingBar() {
+        let c = makeCandles()
+        let closed = Features.closed(c, horizon: .h1, nowMs: 29 * 3_600_000 + 1_000)
+        XCTAssertEqual(closed.count, 29)
+    }
+
+    func testInstrumentsAndFees() {
+        let nvda = Instrument.find("xyz:NVDA")
+        XCTAssertTrue(nvda.isStock)
+        XCTAssertEqual(nvda.label, "NVDA")
+        XCTAssertEqual(nvda.takerFee, Hyperliquid.takerFee * 2, accuracy: 1e-12)
+        XCTAssertEqual(Instrument.find("BTC").takerFee, Hyperliquid.takerFee, accuracy: 1e-12)
+        XCTAssertEqual(Hyperliquid.dex(of: "xyz:TSLA"), "xyz")
+        XCTAssertNil(Hyperliquid.dex(of: "ETH"))
+        // čtvrtek 15. 10. 2026 16:00 UTC = 12:00 New York → otevřeno; neděle zavřeno
+        XCTAssertTrue(USMarketHours.isOpen(at: Date(timeIntervalSince1970: 1_792_080_000)))
+        XCTAssertFalse(USMarketHours.isOpen(at: Date(timeIntervalSince1970: 1_792_080_000 + 3 * 86_400)))
+    }
+}
+
+final class AnalysisTests: XCTestCase {
+    let records: [CallRecord] = [
+        CallRecord(id: 0, t: 1, side: .buy, conf: 0.9, price: 100, retNextBps: 10),
+        CallRecord(id: 1, t: 2, side: .buy, conf: 0.95, price: 100, retNextBps: -5),
+        CallRecord(id: 2, t: 3, side: .sell, conf: 0.7, price: 100, retNextBps: -20),
+        CallRecord(id: 3, t: 4, side: .sell, conf: 0.9, price: 100, retNextBps: -8),
+    ]
+
+    func testSimulateWithFees() {
+        let hi = Analysis.simulate(records, minConf: 0.8, feeRate: 0.0005)
+        XCTAssertEqual(hi.grossBps, 13, accuracy: 1e-9)
+        XCTAssertEqual(hi.feesBps, 15, accuracy: 1e-9)
+        XCTAssertEqual(hi.netBps, -2, accuracy: 1e-9)
+        XCTAssertEqual(hi.trades, 3)
+        XCTAssertEqual(hi.exposed, 3)
+        XCTAssertEqual(hi.hits, 2)
+
+        let lo = Analysis.simulate(records, minConf: 0.6, feeRate: 0.0005)
+        XCTAssertEqual(lo.grossBps, 33, accuracy: 1e-9)
+        XCTAssertEqual(lo.feesBps, 15, accuracy: 1e-9)
+        XCTAssertEqual(lo.netBps, 18, accuracy: 1e-9)
+        XCTAssertEqual(lo.trades, 2)
+        XCTAssertEqual(lo.equity.last?.netUsd ?? 0, 1.8, accuracy: 1e-9)
+    }
+
+    func testCalibrationAndBuyHold() {
+        let cal = Analysis.calibration(records)
+        let top = cal.first { $0.lower == 0.9 }
+        XCTAssertEqual(top?.count, 3)
+        XCTAssertEqual(top?.hits, 2)
+        XCTAssertEqual(top?.avgSignedBps ?? 0, 13.0 / 3, accuracy: 1e-9)
+        XCTAssertEqual(cal.first { $0.lower == 0.7 }?.avgSignedBps ?? 0, 20, accuracy: 1e-9)
+        XCTAssertEqual(Analysis.buyHoldBps(records), -23.002978008, accuracy: 1e-6)
+    }
+
+    func testWalkForwardNeedsEnoughData() {
+        XCTAssertNil(Analysis.walkForward(records, feeRate: 0.0005, defaultThreshold: 0.6))
+        var many: [CallRecord] = []
+        for i in 0..<40 {
+            many.append(CallRecord(id: i, t: Double(i), side: i % 2 == 0 ? .buy : .sell, conf: 0.55 + Double(i % 9) * 0.05,
+                                   price: 100, retNextBps: i % 2 == 0 ? 12 : -12))
+        }
+        let wf = Analysis.walkForward(many, feeRate: 0.0005, defaultThreshold: 0.6)
+        XCTAssertEqual(wf?.trainCount, 20)
+        XCTAssertEqual(wf?.testCount, 20)
+        XCTAssertNotNil(wf?.chosen)
+    }
+
+    func testTickOutcomes() {
+        let raw = [
+            CallRecord(id: 0, t: 1, side: .buy, conf: 0.9, price: 100),
+            CallRecord(id: 1, t: 2, side: .buy, conf: 0.9, price: 100),
+            CallRecord(id: 2, t: 3, side: .sell, conf: 0.9, price: 100.1),
+        ]
+        let out = Analysis.fillTickOutcomes(raw)
+        XCTAssertEqual(out[0].retNextBps ?? 0, 10, accuracy: 1e-6)
+        XCTAssertEqual(out[1].retNextBps ?? 0, 10, accuracy: 1e-6)
+        XCTAssertNil(out[2].retNextBps)
+    }
+
+    func testStoreRoundTripAndCSV() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let store = RunStore(directory: dir)
+        let summary = RunSummary(kind: .backtest, started: Date(timeIntervalSince1970: 100), ended: Date(timeIntervalSince1970: 200),
+                                 coin: "BTC", horizon: .h1, strategy: "test", minConf: 0.6, feeRate: 0.00045,
+                                 calls: 4, trades: 2, grossUsd: 3.3, feesUsd: 1.5, netUsd: 1.8, hitRate: 0.75,
+                                 buyHoldBps: -23, note: nil)
+        try store.save(RunDetail(summary: summary, records: records))
+        XCTAssertEqual(store.summaries().count, 1)
+        let back = try XCTUnwrap(store.detail(summary.id))
+        XCTAssertEqual(back.records, records)
+        XCTAssertEqual(back.summary.horizon, .h1)
+        let csv = RunStore.csv(back)
+        XCTAssertTrue(csv.hasPrefix("time,side,conf,price,ret_next_bps,action"))
+        XCTAssertEqual(csv.split(separator: "\n").count, 5)
+        store.delete(summary.id)
+        XCTAssertTrue(store.summaries().isEmpty)
+    }
+}
