@@ -16,6 +16,9 @@ struct HorizonView: View {
                     if !engine.records.isEmpty {
                         RunAnalysisView(records: engine.records, feeRate: engine.feeRate, notional: engine.config.notional,
                                         minConf: Binding(get: { engine.minConf }, set: { engine.minConf = $0 }))
+                        if let last = engine.records.last(where: { $0.state != nil }), let st = last.state {
+                            StateCard(state: st, date: last.date)
+                        }
                         DecisionList(records: engine.records, minConf: engine.minConf)
                     }
                 }
@@ -24,7 +27,12 @@ struct HorizonView: View {
             .background(Theme.background)
             .navigationTitle("Horizont")
             .onChange(of: model.horizonConfig.horizon) {
-                model.horizonConfig.days = min(model.horizonConfig.days, model.horizonConfig.horizon.maxDays.rounded(.down))
+                let defaults: [Horizon: Double] = [.m5: 7, .m15: 14, .h1: 30, .h4: 180, .d1: 365]
+                let cfg = model.horizonConfig
+                model.horizonConfig.days = min(defaults[cfg.horizon] ?? 30, cfg.maxDays.rounded(.down))
+            }
+            .onChange(of: model.horizonConfig.multiTF) {
+                model.horizonConfig.days = min(model.horizonConfig.days, model.horizonConfig.maxDays.rounded(.down))
             }
         }
     }
@@ -46,9 +54,17 @@ struct HorizonView: View {
             InstrumentPicker(coin: $bindable.horizonConfig.coin)
                 .disabled(engine.isActive)
             Picker("Horizont", selection: $bindable.horizonConfig.horizon) {
-                ForEach(Horizon.allCases) { Text($0.label).tag($0) }
+                ForEach(Horizon.allCases) { Text($0.shortLabel).tag($0) }
             }
             .pickerStyle(.segmented)
+            .disabled(engine.isActive)
+            Toggle(isOn: $bindable.horizonConfig.multiTF) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Kontext z dalších timeframů")
+                    Text("Obchod na \(cfg.horizon.shortLabel), rozhodování i z " + cfg.horizon.context.map(\.label).joined(separator: ", "))
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
             .disabled(engine.isActive)
 
             if !live {
@@ -58,13 +74,15 @@ struct HorizonView: View {
                         Spacer()
                         Text("\(Int(cfg.days)) dní · \(cfg.backtestBars) svíček").font(.system(.body, design: .monospaced))
                     }
-                    Slider(value: $bindable.horizonConfig.days, in: 1...max(2, min(60, cfg.horizon.maxDays.rounded(.down))), step: 1)
+                    Slider(value: $bindable.horizonConfig.days, in: 1...max(2, min(1500, cfg.maxDays.rounded(.down))), step: 1)
                         .disabled(engine.isActive)
-                    Text("≈ \(cfg.backtestBars) Jev volání · odhad ~$\(String(format: "%.2f", Double(cfg.backtestBars) * 0.00002)) podle ceny z tvého testu · max \(Int(cfg.horizon.maxDays)) dní (Hyperliquid drží ~5000 svíček)")
+                    Text("≈ \(cfg.backtestBars) Jev volání · odhad ~$\(String(format: "%.2f", Double(cfg.backtestBars) * 0.00002)) podle ceny z tvého testu · max \(Int(min(1500, cfg.maxDays))) dní (Hyperliquid drží ~5000 svíček na rámec; u akciových perpů je historie kratší)")
                         .font(.caption).foregroundStyle(.secondary)
                 }
             } else {
-                Text("Rozhoduje na každém zavření svíčky, dokud běh nezastavíš (appka musí zůstat otevřená). Jedno Jev volání na svíčku.")
+                Text(cfg.horizon == .d1
+                     ? "Rozhoduje na zavření denní svíčky (00:00 UTC = 2:00 v noci u nás), takže appka musí běžet přes noc, nejlépe na Macu. Jedno Jev volání denně."
+                     : "Rozhoduje na každém zavření svíčky, dokud běh nezastavíš (appka musí zůstat otevřená). Jedno Jev volání na svíčku.")
                     .font(.caption).foregroundStyle(.secondary)
             }
 
@@ -179,5 +197,39 @@ struct DecisionList: View {
     private func outcomeColor(_ r: CallRecord) -> Color {
         guard let ret = r.retNextBps, r.side != nil else { return .secondary }
         return r.sign * ret > 0 ? Theme.good : Theme.bad
+    }
+}
+
+/// Co Jev viděl u posledního rozhodnutí, seskupené podle timeframu.
+struct StateCard: View {
+    let state: [String: Double]
+    let date: Date
+
+    var body: some View {
+        let groups = Dictionary(grouping: state.keys.sorted()) { key -> String in
+            for tf in Timeframe.allCases where key.hasPrefix(tf.prefix) { return tf.label }
+            return "obchodní rámec"
+        }
+        let order = ["obchodní rámec"] + Timeframe.allCases.map(\.label)
+        Card("Co Jev viděl · \(date.formatted(date: .abbreviated, time: .shortened))") {
+            ForEach(order.filter { groups[$0] != nil }, id: \.self) { g in
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(g).font(.caption.weight(.semibold)).foregroundStyle(Theme.jev)
+                    ForEach(groups[g] ?? [], id: \.self) { k in
+                        HStack {
+                            Text(shortKey(k, group: g)).foregroundStyle(.secondary)
+                            Spacer()
+                            Text(F.num(state[k] ?? 0))
+                        }
+                        .font(.system(size: 11.5, design: .monospaced))
+                    }
+                }
+            }
+        }
+    }
+
+    private func shortKey(_ k: String, group: String) -> String {
+        for tf in Timeframe.allCases where k.hasPrefix(tf.prefix) { return String(k.dropFirst(tf.prefix.count)) }
+        return k
     }
 }
