@@ -62,6 +62,7 @@ struct RunDetailView: View {
     let id: UUID
     @State private var detail: RunDetail?
     @State private var minConf: Double = 0.6
+    @State private var mode: SimMode = .jev
     @State private var csvURL: URL?
 
     var body: some View {
@@ -70,7 +71,7 @@ struct RunDetailView: View {
                 if let d = detail {
                     header(d.summary)
                     RunAnalysisView(records: d.records, feeRate: d.summary.feeRate, notional: d.summary.notional,
-                                    minConf: $minConf, showsThreshold: d.summary.kind != .tick)
+                                    minConf: $minConf, mode: $mode, showsThreshold: d.summary.kind != .tick)
                     if d.summary.kind == .tick {
                         Text("U běhu smyčky je výsledek z papírového účtu (limitní objednávky, skutečné fills). Kalibrace měří pohyb do dalšího Jev volání.")
                             .font(.caption).foregroundStyle(.secondary)
@@ -97,6 +98,7 @@ struct RunDetailView: View {
         guard let d = model.store.detail(id) else { return }
         detail = d
         minConf = d.summary.minConf ?? 0.6
+        mode = Analysis.hasBias(d.records) ? .jevClaude : .jev
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("jevlab-\(d.summary.instrument.label)-\(d.summary.kind.rawValue)-\(Int(d.summary.started.timeIntervalSince1970)).csv")
         if (try? RunStore.csv(d).write(to: url, atomically: true, encoding: .utf8)) != nil {

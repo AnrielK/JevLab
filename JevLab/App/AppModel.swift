@@ -27,6 +27,9 @@ final class AppModel {
     let store = RunStore.standard()
 
     var horizonConfig = HorizonConfig()
+    /// Akciové perpy z API Hyperliquid (dokud se nenačtou, výchozí seznam).
+    private(set) var stocks: [Instrument] = Instrument.stocks
+    private(set) var stocksNote: String?
     /// Databáze proběhlých běhů (nejnovější první).
     private(set) var runs: [RunSummary] = []
     var saveError: String?
@@ -53,6 +56,7 @@ final class AppModel {
         refreshKeys()
         runs = store.summaries()
         loop.onFinish = { [weak self] detail in self?.saveRun(detail) }
+        Task { await self.loadStocks() }
         horizon.onFinish = { [weak self] detail in self?.saveRun(detail) }
     }
 
@@ -75,16 +79,30 @@ final class AppModel {
 
     // MARK: - Horizont
 
+    func loadStocks() async {
+        do {
+            let list = try await Instrument.loadStocks()
+            if !list.isEmpty {
+                stocks = list
+                stocksNote = nil
+            } else {
+                stocksNote = "Hyperliquid nevrátil žádné akciové trhy (dex xyz)."
+            }
+        } catch {
+            stocksNote = "Seznam akcií se nepodařilo načíst: \(error.localizedDescription)"
+        }
+    }
+
     func startBacktest() {
         guard let jev = makeJev() else { return }
         loop.stop()
         newsroom.stop()
-        horizon.startBacktest(config: horizonConfig, jev: jev)
+        horizon.startBacktest(config: horizonConfig, jev: jev, claude: horizonConfig.claude ? makeClaude() : nil)
     }
 
     func startHorizonLive() {
         guard let jev = makeJev() else { return }
-        horizon.startLive(config: horizonConfig, jev: jev)
+        horizon.startLive(config: horizonConfig, jev: jev, claude: horizonConfig.claude ? makeClaude() : nil)
     }
 
     // MARK: - Klíče

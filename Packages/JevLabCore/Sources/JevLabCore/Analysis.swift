@@ -155,8 +155,8 @@ public enum Analysis {
         return out
     }
 
-    public static func sweep(_ records: [CallRecord], feeRate: Double) -> [ThresholdPoint] {
-        thresholds.map { ThresholdPoint(threshold: $0, result: simulate(records, minConf: $0, feeRate: feeRate)) }
+    public static func sweep(_ records: [CallRecord], feeRate: Double, mode: SimMode = .jev) -> [ThresholdPoint] {
+        thresholds.map { ThresholdPoint(threshold: $0, result: simulate(records, minConf: $0, feeRate: feeRate, mode: mode)) }
     }
 
     /// Kupit a držet za stejné období (srovnávací základ).

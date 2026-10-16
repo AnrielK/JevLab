@@ -1,5 +1,11 @@
 # Změny
 
+## 0.5.0 · 2026-10-16
+
+- Claude v Horizontu (backtest i živě): každých N svíček nastaví směr long/short/flat ze stejných relativních čísel, jaká vidí Jev (bez cen, dat a zpráv, aby z historie nepoznal období). Ke každému rozhodnutí se ukládá Jev směr i Claudův bias.
+- Srovnání „Jev sám / Jev + Claude / Claude sám“ ze stejného běhu, na celém období i na nových datech (druhá polovina), plus přepínač režimu pro výsledek, sweep prahů a walk-forward.
+- Oprava akcií: seznam akciových trhů se načítá z API Hyperliquid (dex xyz) místo pevných názvů; chyby Hyperliquid se zobrazují i se skutečnou odpovědí serveru.
+
 ## 0.4.0 · 2026-10-16
 
 - Horizont: nové rámce 4 hodiny a 1 den.

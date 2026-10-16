@@ -10,14 +10,26 @@ struct RunAnalysisView: View {
     var notional: Double = 1000
     /// Práh, pro který se počítá výsledek; nil = tick běh (výsledek je z papírového účtu).
     @Binding var minConf: Double
+    @Binding var mode: SimMode
     var showsThreshold = true
 
     var body: some View {
-        let sim = Analysis.simulate(records, minConf: minConf, feeRate: feeRate, notional: notional)
+        let hasBias = Analysis.hasBias(records)
+        let m: SimMode = hasBias ? mode : .jev
+        let sim = Analysis.simulate(records, minConf: minConf, feeRate: feeRate, notional: notional, mode: m)
         let done = records.filter { $0.retNextBps != nil }.count
         VStack(spacing: 12) {
+            if showsThreshold && hasBias {
+                ComparisonCard(records: records, feeRate: feeRate, notional: notional, minConf: minConf)
+            }
             if showsThreshold {
                 Card("Výsledek po poplatcích") {
+                    if hasBias {
+                        Picker("Kdo rozhoduje", selection: $mode) {
+                            ForEach(SimMode.allCases, id: \.self) { Text($0.label).tag($0) }
+                        }
+                        .pickerStyle(.segmented)
+                    }
                     HStack {
                         Text("Práh jistoty")
                         Slider(value: $minConf, in: 0.5...0.95, step: 0.05)
@@ -45,8 +57,8 @@ struct RunAnalysisView: View {
             }
             CalibrationCard(records: records)
             if showsThreshold {
-                SweepCard(records: records, feeRate: feeRate, minConf: minConf)
-                WalkForwardCard(records: records, feeRate: feeRate, defaultThreshold: minConf)
+                SweepCard(records: records, feeRate: feeRate, minConf: minConf, mode: m)
+                WalkForwardCard(records: records, feeRate: feeRate, defaultThreshold: minConf, mode: m)
             }
         }
     }
@@ -104,9 +116,10 @@ struct SweepCard: View {
     let records: [CallRecord]
     let feeRate: Double
     let minConf: Double
+    var mode: SimMode = .jev
 
     var body: some View {
-        let points = Analysis.sweep(records, feeRate: feeRate)
+        let points = Analysis.sweep(records, feeRate: feeRate, mode: mode)
         Card("Který práh by vydělal nejvíc (na celých datech)") {
             Chart(points) { p in
                 BarMark(x: .value("Práh", F.pct(p.threshold)), y: .value("bps", p.result.netBps))
@@ -126,10 +139,11 @@ struct WalkForwardCard: View {
     let records: [CallRecord]
     let feeRate: Double
     let defaultThreshold: Double
+    var mode: SimMode = .jev
 
     var body: some View {
-        Card("Walk-forward test") {
-            if let wf = Analysis.walkForward(records, feeRate: feeRate, defaultThreshold: defaultThreshold) {
+        Card(mode == .jev ? "Walk-forward test" : "Walk-forward test · \(mode.label)") {
+            if let wf = Analysis.walkForward(records, feeRate: feeRate, defaultThreshold: defaultThreshold, mode: mode) {
                 Text("Práh se vybere na prvních \(wf.trainCount) rozhodnutích a pak se vyhodnotí na dalších \(wf.testCount), která výběr neviděl.")
                     .font(.footnote).foregroundStyle(.secondary)
                 StatGrid(items: [
@@ -154,5 +168,48 @@ struct WalkForwardCard: View {
             return "Na nových datech je výsledek kladný, ale výrazně slabší než na tréninku. Typický znak přeučení, chce to víc dat."
         }
         return "Na nových datech výsledek drží. Slibné, ale jeden vzorek nestačí: ověř na jiných obdobích a trzích."
+    }
+}
+
+/// Jev sám vs Jev + Claude vs Claude sám ze stejných uložených rozhodnutí (bez dalších volání).
+struct ComparisonCard: View {
+    let records: [CallRecord]
+    let feeRate: Double
+    let notional: Double
+    let minConf: Double
+
+    var body: some View {
+        Card("Přidává Claude hodnotu?") {
+            Text("Stejná data, tři způsoby rozhodování. „Nová data“ = druhá polovina období, stejná část jako ve walk-forward testu.")
+                .font(.footnote).foregroundStyle(.secondary)
+            Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 6) {
+                GridRow {
+                    Text("").gridColumnAlignment(.leading)
+                    Text("celé období").foregroundStyle(.secondary)
+                    Text("nová data").foregroundStyle(.secondary)
+                    Text("obchodů").foregroundStyle(.secondary)
+                }
+                ForEach(SimMode.allCases, id: \.self) { m in
+                    row(m)
+                }
+            }
+            .font(.system(size: 12.5, design: .monospaced))
+            Text("Kupit a držet za celé období: \(F.bps(Analysis.buyHoldBps(records), digits: 0))")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private func row(_ m: SimMode) -> some View {
+        let all = Analysis.simulate(records, minConf: minConf, feeRate: feeRate, notional: notional, mode: m)
+        let test = Analysis.testHalf(records, minConf: minConf, feeRate: feeRate, mode: m)
+        GridRow {
+            Text(m.label).fontWeight(.semibold)
+            Text(F.usd(all.usd(all.netBps, notional: notional)))
+                .foregroundStyle(all.netBps > 0 ? Theme.good : Theme.bad)
+            Text(test.map { F.bps($0.netBps, digits: 0) } ?? "–")
+                .foregroundStyle((test?.netBps ?? 0) > 0 ? Theme.good : Theme.bad)
+            Text("\(all.trades)")
+        }
     }
 }

@@ -14,8 +14,13 @@ struct HorizonView: View {
                 VStack(spacing: 12) {
                     controls(engine)
                     if !engine.records.isEmpty {
+                        if let c = engine.lastClaude {
+                            HorizonClaudeCard(state: c, every: engine.config.claudeEvery, horizon: engine.config.horizon,
+                                              errors: engine.claudeErrors)
+                        }
                         RunAnalysisView(records: engine.records, feeRate: engine.feeRate, notional: engine.config.notional,
-                                        minConf: Binding(get: { engine.minConf }, set: { engine.minConf = $0 }))
+                                        minConf: Binding(get: { engine.minConf }, set: { engine.minConf = $0 }),
+                                        mode: Binding(get: { engine.simMode }, set: { engine.simMode = $0 }))
                         if let last = engine.records.last(where: { $0.state != nil }), let st = last.state {
                             StateCard(state: st, date: last.date)
                         }
@@ -66,6 +71,8 @@ struct HorizonView: View {
                 }
             }
             .disabled(engine.isActive)
+
+            claudeControls(engine, cfg: cfg)
 
             if !live {
                 VStack(alignment: .leading, spacing: 4) {
@@ -118,6 +125,34 @@ struct HorizonView: View {
         }
     }
 
+    @ViewBuilder
+    private func claudeControls(_ engine: HorizonEngine, cfg: HorizonConfig) -> some View {
+        @Bindable var bindable = model
+        Toggle(isOn: $bindable.horizonConfig.claude) {
+            VStack(alignment: .leading, spacing: 2) {
+                Label("Claude mozek", systemImage: "brain")
+                Text(model.hasGatewayKey
+                     ? "Claude určuje směr, Jev obchoduje jen tím směrem. Výsledek ukáže Jev sám / Jev + Claude / Claude sám vedle sebe."
+                     : "Potřebuje Vercel AI Gateway klíč.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .disabled(engine.isActive || !model.hasGatewayKey)
+        if cfg.claude {
+            Picker("Claude čte trh", selection: $bindable.horizonConfig.claudeEveryBars) {
+                Text("výchozí (každých \(HorizonConfig.defaultEvery(cfg.horizon)) sv.)").tag(0)
+                Text("každou svíčku").tag(1)
+                Text("každé 4 svíčky").tag(4)
+                Text("každých 12 svíček").tag(12)
+            }
+            .disabled(engine.isActive)
+            if !live {
+                Text("≈ \(cfg.claudeCalls) Claude volání navíc. Claude je dražší než Jev; přesnou cenu uvidíš ve Vercelu ve Spend by Model, takže začni krátkým backtestem. Claude dostane jen relativní čísla (žádné ceny, data ani zprávy), aby z historie nepoznal, o jaké období jde.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+
     private func status(_ engine: HorizonEngine) -> some View {
         let text: String
         switch engine.status {
@@ -140,6 +175,7 @@ struct HorizonView: View {
 
 /// Výběr trhu: krypto a akciové perpy (HIP-3), u akcií stav burzy v USA.
 struct InstrumentPicker: View {
+    @Environment(AppModel.self) private var model
     @Binding var coin: String
 
     var body: some View {
@@ -150,7 +186,7 @@ struct InstrumentPicker: View {
                     ForEach(Instrument.crypto) { Text($0.label).tag($0.coin) }
                 }
                 Section("US akcie (perpy na Hyperliquid)") {
-                    ForEach(Instrument.stocks) { Text($0.label).tag($0.coin) }
+                    ForEach(model.stocks) { Text($0.label).tag($0.coin) }
                 }
             }
             .pickerStyle(.menu)
@@ -160,6 +196,9 @@ struct InstrumentPicker: View {
                     .font(.caption)
                     .foregroundStyle(open ? Theme.good : Theme.late)
             }
+        }
+        if let note = model.stocksNote, inst.isStock {
+            Text(note).font(.caption).foregroundStyle(Theme.late)
         }
         if inst.isStock {
             Text("Perp sledující akcii přes oracle, ne skutečná akcie. Obchoduje se 24/7; mimo seanci NYSE cena nesleduje burzu a po otevření bývají skoky. Poplatky 2× vyšší než u krypta.")
@@ -231,5 +270,30 @@ struct StateCard: View {
     private func shortKey(_ k: String, group: String) -> String {
         for tf in Timeframe.allCases where k.hasPrefix(tf.prefix) { return String(k.dropFirst(tf.prefix.count)) }
         return k
+    }
+}
+
+/// Poslední Claudovo čtení v Horizontu.
+struct HorizonClaudeCard: View {
+    let state: BrainState
+    let every: Int
+    let horizon: Horizon
+    let errors: Int
+
+    var body: some View {
+        let color: Color = state.bias == .long ? Theme.good : state.bias == .short ? Theme.bad : .secondary
+        Card("Claude · čte trh každých \(every) × \(horizon.shortLabel)") {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Text(state.bias?.rawValue.uppercased() ?? "…")
+                    .font(.system(size: 30, weight: .heavy))
+                    .foregroundStyle(color)
+                if let c = state.confidence {
+                    Text(F.pct(c)).font(.system(size: 18, design: .monospaced)).foregroundStyle(.secondary)
+                }
+            }
+            Text(state.reason).font(.callout).fixedSize(horizontal: false, vertical: true)
+            Text("\(state.model)\(state.ms.map { " · \($0) ms" } ?? "")\(errors > 0 ? " · \(errors)× chyba" : "")")
+                .font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary)
+        }
     }
 }

@@ -30,7 +30,10 @@ public struct HorizonConfig: Sendable, Equatable {
 
     /// Claude čte trh každých N svíček (výchozí zhruba jednou za 1–4 hodiny, u denního každý den).
     public var claudeEvery: Int {
-        if claudeEveryBars > 0 { return claudeEveryBars }
+        claudeEveryBars > 0 ? claudeEveryBars : HorizonConfig.defaultEvery(horizon)
+    }
+
+    public static func defaultEvery(_ horizon: Horizon) -> Int {
         switch horizon {
         case .m5: return 12
         case .m15: return 8
