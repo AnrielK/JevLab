@@ -8,6 +8,7 @@ struct SettingsView: View {
     @State private var keyText = ""
 
     var body: some View {
+        @Bindable var bindable = model
         NavigationStack {
             Form {
                 Section {
@@ -37,6 +38,20 @@ struct SettingsView: View {
                     Text("Jev klíč")
                 } footer: {
                     Text("Klíč získáš na vercel.com/dashboard → AI Gateway → API Keys → Create key. Vercel vyžaduje platební kartu a Jev funguje jen s placenými kredity v AI Gateway. Doporučuji klíči nastavit budget. Klíč zůstává jen v Keychainu tohoto zařízení a nikde se nezobrazuje.")
+                }
+
+                Section {
+                    TextField("anthropic/claude-sonnet-5.5", text: $bindable.claudeModel)
+                        .autocorrectionDisabled()
+                        #if os(iOS)
+                        .textInputAutocapitalization(.never)
+                        #endif
+                        .font(.system(.body, design: .monospaced))
+                    Button("Výchozí model") { model.claudeModel = ClaudeClient.defaultModel }
+                } header: {
+                    Text("Claude mozek")
+                } footer: {
+                    Text("Model přes Vercel AI Gateway (stejný klíč jako Jev). Claude čte trh jednou za 5–15 minut, takže stojí jen zlomek ceny Jev volání.")
                 }
 
                 Section {
@@ -70,6 +85,7 @@ struct SettingsView: View {
             }
             .formStyle(.grouped)
             .navigationTitle("Nastavení")
+            .onChange(of: model.claudeModel) { model.saveClaudeModel() }
         }
     }
 

@@ -82,10 +82,23 @@ final class AppModel {
 
     // MARK: - Spouštění
 
+    /// Claude model pro mozek (Vercel AI Gateway slug).
+    var claudeModel: String = UserDefaults.standard.string(forKey: "claudeModel") ?? ClaudeClient.defaultModel
+
+    func saveClaudeModel() {
+        UserDefaults.standard.set(claudeModel, forKey: "claudeModel")
+    }
+
+    /// Claude jde jen přes Vercel AI Gateway klíč.
+    func makeClaude() -> ClaudeClient? {
+        guard let g = Keychain.read(KeyKind.gateway.account), !g.isEmpty else { return nil }
+        return ClaudeClient(gatewayKey: g, model: claudeModel.trimmingCharacters(in: .whitespaces))
+    }
+
     func startLoop() {
         guard let jev = makeJev() else { return }
         newsroom.stop()
-        loop.start(config: loopConfig, jev: jev, strategy: strategy.make())
+        loop.start(config: loopConfig, jev: jev, strategy: strategy.make(), claude: loopConfig.brain ? makeClaude() : nil)
     }
 
     func startNewsroom() {

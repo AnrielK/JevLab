@@ -212,6 +212,10 @@ struct FeedCard: View {
         "hold · already short": "v pozici",
         "hold · already flat": "flat",
         "hold · late": "pozdě",
+        "hold · waiting for Claude": "čeká na Clauda",
+        "hold · Claude says stay out": "Claude: mimo trh",
+        "hold · against Claude's long bias": "proti Claudovi",
+        "hold · against Claude's short bias": "proti Claudovi",
     ]
 
     var body: some View {

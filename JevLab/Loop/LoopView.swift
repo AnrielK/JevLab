@@ -45,6 +45,9 @@ struct LoopView: View {
 
     private var sideColumn: some View {
         VStack(spacing: 12) {
+            if model.loop.brain != nil {
+                BrainCard()
+            }
             LatestCallCard()
             AccountCard()
             FeedCard()
@@ -88,6 +91,8 @@ struct LoopControls: View {
                 VStack(alignment: .leading, spacing: 8) { controls(model: model) }
             }
             .disabled(loop.isActive)
+            brainControls()
+                .disabled(loop.isActive)
             if case .failed(let msg) = loop.status {
                 Text(msg).font(.footnote).foregroundStyle(Theme.bad)
             }
@@ -115,6 +120,33 @@ struct LoopControls: View {
         .frame(maxWidth: 220)
         Toggle("Limitní objednávky", isOn: $bindable.loopConfig.maker)
             .fixedSize()
+    }
+
+    @ViewBuilder
+    private func brainControls() -> some View {
+        @Bindable var bindable = model
+        HStack(spacing: 16) {
+            Toggle(isOn: $bindable.loopConfig.brain) {
+                Label("Claude mozek", systemImage: "brain")
+            }
+            .fixedSize()
+            .disabled(!model.hasGatewayKey)
+            if model.loopConfig.brain {
+                Picker("Čte trh každých", selection: $bindable.loopConfig.brainEvery) {
+                    Text("5 min").tag(5.0)
+                    Text("10 min").tag(10.0)
+                    Text("15 min").tag(15.0)
+                }
+                .frame(maxWidth: 200)
+            }
+        }
+        if !model.hasGatewayKey {
+            Text("Claude mozek potřebuje Vercel AI Gateway klíč.")
+                .font(.footnote).foregroundStyle(.secondary)
+        } else if model.loopConfig.brain {
+            Text("Claude čte trh a titulky a nastaví směr long/short/flat; Jev pak obchoduje jen tím směrem.")
+                .font(.footnote).foregroundStyle(.secondary)
+        }
     }
 
     private func statusPill(_ loop: LoopEngine) -> some View {

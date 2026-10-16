@@ -1,5 +1,11 @@
 # Změny
 
+## 0.2.0 · 2026-10-16
+
+- Claude mozek ve Smyčce: Claude (přes Vercel AI Gateway) každých 5/10/15 min přečte souhrn trhu z Hyperliquid a poslední titulky a nastaví bias long/short/flat. Jev obchoduje jen tím směrem, při změně směru se pozice zavře. Karta s biasem, jistotou, zdůvodněním a tlačítkem „Přečíst teď“.
+- Nastavitelný Claude model v Nastavení (výchozí `anthropic/claude-sonnet-5.5`).
+- Testy logiky mozku (souhrn trhu podle Python reference, parsování odpovědi, pravidla brány).
+
 ## 0.1.2 · 2026-10-16
 
 - Oprava: na iPhonu na výšku se stránka smyčky roztahovala doprava (pruh teček měl pevnou šířku). Pruh se teď kreslí podle dostupné šířky a obsah záložek je ukotvený na šířku displeje.

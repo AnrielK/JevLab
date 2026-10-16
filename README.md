@@ -4,11 +4,12 @@ Nativní aplikace pro **macOS a iPhone** postavená podle *Jev Starteru*: živý
 
 **Jen papírové obchodování.** Aplikace čte veřejná data Hyperliquid a fills simuluje se skutečnými poplatky. Nikdy neposílá objednávku a nepotřebuje účet na burze. Není to finanční poradenství.
 
-## Co umí (0.1)
+## Co umí (0.2)
 
 | Záložka | Co dělá |
 |---|---|
 | **Smyčka** | Živá microprice z Hyperliquid (WebSocket, ~8× za s), Jev volání jako tečky v grafu, ◆ vyplněné obchody, ležící limitní objednávka, „co Jev viděl“, papírový účet $1,000 s P&L před/po poplatcích a křivkou equity, feed všech volání. Coiny HYPE/BTC/ETH/SOL, délka 5/10/30 min nebo do zastavení, limitní (maker 1,5 bps) nebo tržní (taker 4,5 bps + spread) objednávky. Tempo se samo zpomalí při 429 (free tier). |
+| **Claude mozek** (ve Smyčce) | Volitelně: Claude (výchozí `anthropic/claude-sonnet-5.5` přes Vercel AI Gateway) každých 5/10/15 min přečte souhrn trhu (15m/1h/4h/24h změna, průměrný 5min pohyb, rozsah, funding z Hyperliquid) a poslední titulky a nastaví bias **long / short / flat**. Jev pak obchoduje jen tím směrem; při změně názoru se pozice nejdřív zavře. Když Claude neodpoví, platí poslední bias (bez něj zůstává bot mimo trh). Plnění zůstávají papírová. |
 | **Newsroom** | Zrychlený replay titulků z posledních 12/24/36 h (Cointelegraph, CoinDesk, Decrypt, The Block). Jev u každého určí coin, směr a dopad; obchoduje se jen „Notable“/„Major“, 1 min po zprávě, držení 60 min. Graf ukáže skutečný pohyb ceny z 1min svíček. Skóre po nákladech (10 bps round-trip). |
 | **Strategie** | Výběr strategie a jejích parametrů, platí okamžitě i za běhu: *Přesvědčení* (jistota ≥ X %, pauza mezi otočkami) nebo *Po trendu* (30s návrat + podíl agresivních nákupů). |
 | **Nastavení** | Jev klíč (Vercel AI Gateway nebo přímý TypeSafe) uložený v Keychainu, kontrola nastavení (ceny, feedy, jedno Jev volání, rychlost tieru). |
@@ -60,7 +61,7 @@ CI na GitHub Actions staví nepodepsanou `JevLab-unsigned.ipa` (k podepsání/si
 
 ## Plán
 
-- 0.2: Bybit **demo** bot (post-only limitní objednávky, Claude jako „mozek“ nastavující bias long/short/flat, denní limit ztráty, kill switch). Live režim jen s explicitním potvrzením.
+- Bybit **demo** objednávky místo papírových plnění (post-only limitní objednávky, denní limit ztráty, kill switch). Blokováno: Bybit Global omezuje uživatele z EEA (MiCA) a Bybit EU nabízí jen spot; nejdřív ověřit, jestli je Demo Trading z ČR dostupný. Live režim jen s explicitním potvrzením.
 - Vlastní pravidla strategie poskládaná v UI (podmínky nad poli stavu).
 - Ukládání historie běhů a srovnání strategií po poplatcích.
 - Widget / Live Activity s aktuálním P&L.

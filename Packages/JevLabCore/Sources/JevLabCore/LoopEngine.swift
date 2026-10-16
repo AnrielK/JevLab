@@ -14,6 +14,10 @@ public struct LoopConfig: Sendable, Equatable {
     /// Jak dlouho limitní objednávka čeká, než se zruší (s).
     public var makerWait: Double = 10
     public var notional: Double = 1000
+    /// Claude jako mozek: nastavuje bias long/short/flat.
+    public var brain: Bool = false
+    /// Jak často Claude čte trh (min).
+    public var brainEvery: Double = 10
 
     public init() {}
 }
@@ -105,6 +109,8 @@ public final class LoopEngine {
     public private(set) var scored = 0
     /// Poslední chyba Jev volání (HTTP kód a text), aby se dala ukázat v UI.
     public private(set) var lastError: String?
+    /// Claudův mozek, když je zapnutý.
+    public private(set) var brain: ClaudeBrain?
 
     @ObservationIgnored private var market = MarketBook()
     @ObservationIgnored private var feed: HyperliquidFeed?
@@ -130,7 +136,7 @@ public final class LoopEngine {
 
     // MARK: - Ovládání
 
-    public func start(config: LoopConfig, jev: JevClient, strategy: TradingStrategy) {
+    public func start(config: LoopConfig, jev: JevClient, strategy: TradingStrategy, claude: ClaudeClient? = nil) {
         stop()
         generation += 1
         self.config = config
@@ -160,6 +166,13 @@ public final class LoopEngine {
         hits = 0
         scored = 0
         status = .connecting
+        if config.brain, let claude {
+            let b = ClaudeBrain(coin: config.coin, everyMinutes: config.brainEvery, client: claude)
+            brain = b
+            b.start()
+        } else {
+            brain = nil
+        }
 
         let f = HyperliquidFeed(coin: config.coin)
         f.onEvent = { [weak self] ev in self?.handle(ev) }
@@ -182,6 +195,7 @@ public final class LoopEngine {
     }
 
     private func finish() {
+        brain?.stop()
         tickerTask?.cancel()
         tickerTask = nil
         feed?.stop()
@@ -334,7 +348,11 @@ public final class LoopEngine {
 
     private func decide(_ rec: LoopDecision, _ now: MarketSnapshot) -> String {
         guard let side = rec.side, let conf = rec.conf else { return "hold" }
-        let choice = strategy.decide(call: JevCall(side: side, conf: conf), market: rec.state,
+        var gated: StrategyAction?
+        if let brain {
+            gated = BrainLogic.gate(bias: brain.state.bias, want: side == .buy ? 1 : -1, position: book.pos)
+        }
+        let choice = gated ?? strategy.decide(call: JevCall(side: side, conf: conf), market: rec.state,
                                      position: book.pos, secondsSinceTrade: nowSeconds() - lastTradeT)
         guard let want = choice.target else { return choice.label }
         if want == book.pos {

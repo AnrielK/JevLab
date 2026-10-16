@@ -193,3 +193,38 @@ final class FeedParseTests: XCTestCase {
         XCTAssertNil(HyperliquidFeed.parse(Data(#"{"channel":"bbo","data":{"bbo":[null,{"px":"1","sz":"1"}]}}"#.utf8), now: 0))
     }
 }
+
+final class BrainTests: XCTestCase {
+    func testSummaryMatchesPythonReference() throws {
+        let closes = (0..<49).map { 100 + 0.1 * Double($0) + Double($0 % 3) * 0.05 }
+        let s = try XCTUnwrap(BrainLogic.summary(coin: "BTC", closes: closes, change24hPct: 1.5, fundingRatePct: 0.001))
+        XCTAssertEqual(s.price, 104.8, accuracy: 1e-9)
+        XCTAssertEqual(s.change15mPct, 0.29, accuracy: 1e-9)
+        XCTAssertEqual(s.change1hPct, 1.16, accuracy: 1e-9)
+        XCTAssertEqual(s.change4hPct, 4.8, accuracy: 1e-9)
+        XCTAssertEqual(s.avg5mMovePct, 0.098, accuracy: 0.0011)
+        XCTAssertEqual(s.high4h, 104.8, accuracy: 1e-9)
+        XCTAssertEqual(s.low4h, 100, accuracy: 1e-9)
+        XCTAssertNil(BrainLogic.summary(coin: "BTC", closes: [1, 2, 3], change24hPct: nil, fundingRatePct: nil))
+    }
+
+    func testParseReply() throws {
+        let r = try XCTUnwrap(BrainLogic.parseReply("Sure:\n```json\n{\"bias\": \"Long\", \"confidence\": 1.4, \"reason\": \"Momentum roste.\"}\n```"))
+        XCTAssertEqual(r.bias, .long)
+        XCTAssertEqual(r.confidence, 1)
+        XCTAssertEqual(r.reason, "Momentum roste.")
+        XCTAssertEqual(BrainLogic.parseReply("{\"bias\": \"sideways\"}")?.bias, .flat)
+        XCTAssertNil(BrainLogic.parseReply("no json here"))
+    }
+
+    func testGate() {
+        XCTAssertEqual(BrainLogic.gate(bias: nil, want: 1, position: 0), .hold("waiting for Claude"))
+        XCTAssertEqual(BrainLogic.gate(bias: .flat, want: 1, position: 0), .hold("Claude says stay out"))
+        XCTAssertEqual(BrainLogic.gate(bias: .flat, want: 1, position: 1), .flat)
+        XCTAssertEqual(BrainLogic.gate(bias: .long, want: 1, position: -1), .flat)
+        XCTAssertEqual(BrainLogic.gate(bias: .long, want: -1, position: 0), .hold("against Claude's long bias"))
+        XCTAssertNil(BrainLogic.gate(bias: .long, want: 1, position: 0))
+        XCTAssertEqual(BrainLogic.gate(bias: .short, want: 1, position: 0), .hold("against Claude's short bias"))
+        XCTAssertNil(BrainLogic.gate(bias: .short, want: -1, position: 0))
+    }
+}
