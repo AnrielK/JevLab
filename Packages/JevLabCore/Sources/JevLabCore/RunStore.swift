@@ -133,15 +133,15 @@ public final class RunStore: @unchecked Sendable {
         let iso = ISO8601DateFormatter()
         var lines = [(["time", "side", "conf", "price", "ret_next_bps", "action", "claude_bias"] + keys).joined(separator: ",")]
         for r in detail.records {
-            var row = [
-                iso.string(from: r.date),
-                r.side?.rawValue ?? "",
-                r.conf.map { String($0) } ?? "",
-                String(r.price),
-                r.retNextBps.map { String($0) } ?? "",
-                "\"\((r.action ?? "").replacingOccurrences(of: "\"", with: "'"))\"",
-                r.bias?.rawValue ?? "",
-            ]
+            let action: String = (r.action ?? "").replacingOccurrences(of: "\"", with: "'")
+            var row: [String] = []
+            row.append(iso.string(from: r.date))
+            row.append(r.side?.rawValue ?? "")
+            row.append(r.conf.map { String($0) } ?? "")
+            row.append(String(r.price))
+            row.append(r.retNextBps.map { String($0) } ?? "")
+            row.append("\"" + action + "\"")
+            row.append(r.bias?.rawValue ?? "")
             for k in keys { row.append(r.state?[k].map { String($0) } ?? "") }
             lines.append(row.joined(separator: ","))
         }
