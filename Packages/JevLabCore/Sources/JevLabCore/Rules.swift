@@ -10,10 +10,11 @@ public enum Setups {
         return 0
     }
 
+    /// Cena do ½ ATR od 50svíčkového maxima při rostoucí MA20 (long), nebo u minima při klesající (short).
     public static func breakout(_ s: [String: Double]) -> Double {
-        guard let slope = s["ma20_slope_5bars_bps"] else { return 0 }
-        if let h = s["dist_from_50bar_high_bps"], h >= -50, slope > 0 { return 1 }
-        if let l = s["dist_from_50bar_low_bps"], l <= 50, slope < 0 { return -1 }
+        guard let slope = s["ma20_slope_5bars_bps"], let atr = s["atr14_bps"] else { return 0 }
+        if let h = s["dist_from_50bar_high_bps"], h >= -0.5 * atr, slope > 0 { return 1 }
+        if let l = s["dist_from_50bar_low_bps"], l <= 0.5 * atr, slope < 0 { return -1 }
         return 0
     }
 
@@ -64,7 +65,7 @@ public struct RuleStrategy: Identifiable {
     public static let all: [RuleStrategy] = [
         RuleStrategy(id: "bounce", name: "Odraz S/R + RSI", detail: "long ≤1 ATR nad supportem a RSI ≤ 40; short ≤1 ATR pod rezistencí a RSI ≥ 60",
                      signal: Setups.supportBounce),
-        RuleStrategy(id: "breakout", name: "Průraz", detail: "long u 50svíčkového maxima při rostoucí MA20; short u minima při klesající",
+        RuleStrategy(id: "breakout", name: "Průraz", detail: "long do ½ ATR od 50svíčkového maxima při rostoucí MA20; short u minima při klesající",
                      signal: Setups.breakout),
         RuleStrategy(id: "trend", name: "Trend MA", detail: "long nad MA20 i MA50 s rostoucí MA20; short naopak",
                      signal: Setups.maTrend),

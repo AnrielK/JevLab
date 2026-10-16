@@ -1,5 +1,12 @@
 # Změny
 
+## 0.7.0 · 2026-10-16
+
+- Kombinovaná pravidla nad indikátory: odraz od supportu / odmítnutí u rezistence s RSI, průraz (½ ATR od 50svíčkového extrému + sklon MA20), trend MA, RSI návrat, týdenní trend + denní pullback. Vyhodnocení po poplatcích na celém období i druhé polovině, bez Jev volání.
+- Příznaky setupů ve stavu pro Jev a Clauda (`setup_support_bounce`, `setup_resistance_rejection`, `setup_breakout_up`, `setup_breakdown`, `setup_ma_trend`, `setup_weekly_pullback`).
+- Logistická regrese nad featurami (trénink na první polovině, test na druhé) s porovnáním proti „vždy většinový směr“ a s největšími vahami.
+- Karty „Pravidla nad indikátory“ a „Dá se z featur něco naučit?“ v analýze běhu.
+
 ## 0.6.1 · 2026-10-16
 
 - Stálé názvy featur: vzdálenost od maxima/minima vždy z 50 svíček a průměr z 10 svíček (dřív se název měnil podle dostupné historie, např. 36bar/42bar). Nižší rámec se stahuje s delší rezervou.

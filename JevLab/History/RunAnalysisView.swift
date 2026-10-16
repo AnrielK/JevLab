@@ -56,6 +56,10 @@ struct RunAnalysisView: View {
                 }
             }
             CalibrationCard(records: records)
+            if showsThreshold && records.contains(where: { $0.state != nil }) {
+                RulesCard(records: records, feeRate: feeRate, notional: notional)
+                ModelCard(records: records, feeRate: feeRate)
+            }
             if showsThreshold {
                 SweepCard(records: records, feeRate: feeRate, minConf: minConf, mode: m)
                 WalkForwardCard(records: records, feeRate: feeRate, defaultThreshold: minConf, mode: m)
@@ -211,5 +215,88 @@ struct ComparisonCard: View {
                 .foregroundStyle((test?.netBps ?? 0) > 0 ? Theme.good : Theme.bad)
             Text("\(all.trades)")
         }
+    }
+}
+
+/// Pravidlové strategie nad uloženými featurami (bez Jev volání).
+struct RulesCard: View {
+    let records: [CallRecord]
+    let feeRate: Double
+    let notional: Double
+
+    var body: some View {
+        let results = Analysis.rules(records, feeRate: feeRate)
+        Card("Pravidla nad indikátory (bez Jev)") {
+            Text("Stejné featury, ale rozhoduje pevné pravidlo. Signál otevře pozici, bez nového signálu se drží max. 5 svíček. Pravidla nemají nic naučeného, takže i celé období je poctivé číslo.")
+                .font(.footnote).foregroundStyle(.secondary)
+            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 6) {
+                GridRow {
+                    Text("pravidlo").foregroundStyle(.secondary)
+                    Text("celé").foregroundStyle(.secondary)
+                    Text("2. pol.").foregroundStyle(.secondary)
+                    Text("signálů").foregroundStyle(.secondary)
+                }
+                ForEach(results) { r in
+                    GridRow {
+                        Text(r.rule.name).fontWeight(.semibold)
+                        Text(F.bps(r.full.netBps, digits: 0))
+                            .foregroundStyle(r.full.netBps > 0 ? Theme.good : Theme.bad)
+                        Text(r.test.map { F.bps($0.netBps, digits: 0) } ?? "–")
+                            .foregroundStyle((r.test?.netBps ?? 0) > 0 ? Theme.good : Theme.bad)
+                        Text("\(r.signals)")
+                    }
+                }
+            }
+            .font(.system(size: 12, design: .monospaced))
+            ForEach(results) { r in
+                Text("\(r.rule.name): \(r.rule.detail)").font(.caption2).foregroundStyle(.secondary)
+            }
+            Text("Kupit a držet: \(F.bps(Analysis.buyHoldBps(records), digits: 0)) za celé období")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+}
+
+/// Jednoduchý model (logistická regrese) natrénovaný na první polovině, test na druhé.
+struct ModelCard: View {
+    let records: [CallRecord]
+    let feeRate: Double
+
+    var body: some View {
+        Card("Dá se z featur něco naučit?") {
+            if let m = FeatureModel.walkForward(records, feeRate: feeRate) {
+                Text("Logistická regrese odhaduje, jestli další svíčka skončí výš. Učí se na prvních \(m.trainCount) svíčkách z \(m.features) featur, testuje na dalších \(m.testCount). Obchoduje jen při odhadu nad 55 % nebo pod 45 %.")
+                    .font(.footnote).foregroundStyle(.secondary)
+                StatGrid(items: [
+                    ("Trefa na tréninku", F.pct(m.trainAccuracy), Color.secondary),
+                    ("Trefa na nových", F.pct(m.testAccuracy), m.testAccuracy > max(m.testBaseRate, 1 - m.testBaseRate) ? Theme.good : Color.primary),
+                    ("Základ (vždy většinový směr)", F.pct(max(m.testBaseRate, 1 - m.testBaseRate)), Color.secondary),
+                    ("Na nových po poplatcích", F.bps(m.test.netBps, digits: 0), m.test.netBps > 0 ? Theme.good : Theme.bad),
+                ])
+                Text("Největší váhy (+ = víc nahoru, − = víc dolů):").font(.caption.weight(.semibold))
+                ForEach(m.topWeights) { w in
+                    HStack {
+                        Text(w.feature).foregroundStyle(.secondary)
+                        Spacer()
+                        Text(String(format: "%+.2f", w.weight)).foregroundStyle(w.weight > 0 ? Theme.good : Theme.bad)
+                    }
+                    .font(.system(size: 11.5, design: .monospaced))
+                }
+                Text(verdict(m)).font(.callout)
+            } else {
+                Text("Potřebuje aspoň 40 rozhodnutí s uloženými featurami.").font(.footnote).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func verdict(_ m: ModelReport) -> String {
+        let base = max(m.testBaseRate, 1 - m.testBaseRate)
+        if m.testAccuracy <= base + 0.02 {
+            return "Na nových datech model nepřekonal ani prosté „vždy většinový směr“. Ve featurách tu není naučitelný signál; Jev z nich tím spíš nic nevytěží."
+        }
+        if m.test.netBps <= 0 {
+            return "Model směr trefuje o něco líp než náhoda, ale po poplatcích to nestačí."
+        }
+        return "Model má na nových datech kladný výsledek. Ověř na jiném období a trhu, než tomu uvěříš."
     }
 }
