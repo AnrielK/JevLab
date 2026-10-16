@@ -90,6 +90,10 @@ struct LoopControls: View {
             if case .failed(let msg) = loop.status {
                 Text(msg).font(.footnote).foregroundStyle(Theme.bad)
             }
+            if let err = loop.lastError, (loop.counts[.error] ?? 0) + (loop.counts[.throttled] ?? 0) > 0 {
+                ErrorBanner(title: "Jev volání selhávají (\(loop.counts[.error] ?? 0)× chyba, \(loop.counts[.throttled] ?? 0)× omezeno)",
+                            detail: err)
+            }
         }
     }
 
@@ -196,13 +200,14 @@ struct PriceHeader: View {
     }
 
     private func stats(_ loop: LoopEngine) -> some View {
-        HStack(spacing: 14) {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 104), alignment: .leading)], alignment: .leading, spacing: 4) {
             stat("volání", "\(loop.totalCalls)")
-            stat("poslední", loop.lastMs.map { "\($0) ms" } ?? "–")
-            stat("průměr", loop.avgMs.map { "\($0) ms" } ?? "–")
+            stat("posl.", loop.lastMs.map { "\($0) ms" } ?? "–")
+            stat("prům.", loop.avgMs.map { "\($0) ms" } ?? "–")
             stat("tempo", String(format: "%.1f/s", loop.ratePerSecond))
             stat("pozdě", "\(loop.counts[.late] ?? 0)")
-            stat("omezeno", "\(loop.counts[.throttled] ?? 0)")
+            stat("omez.", "\(loop.counts[.throttled] ?? 0)")
+            stat("chyby", "\(loop.counts[.error] ?? 0)")
         }
         .font(.system(size: 11.5, design: .monospaced))
     }

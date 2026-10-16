@@ -1,5 +1,11 @@
 # Změny
 
+## 0.1.1 · 2026-10-16
+
+- Smyčka i Newsroom teď ukazují skutečnou chybu Jev volání (HTTP kód a text) s nápovědou, co s ní dělat. Dřív se chyby jen tiše počítaly.
+- Nový ukazatel „chyby“ ve statistikách smyčky, statistiky se na iPhonu zalamují místo useknutí.
+- U titulků v newsroomu je vidět i den („včera 14:07“), aby bylo jasné, že jde o replay.
+
 ## 0.1.0 · 2026-10-16
 
 - První verze pro macOS a iPhone podle Jev Starteru.

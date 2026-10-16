@@ -74,7 +74,57 @@ enum F {
         return f.string(from: Date(timeIntervalSince1970: t))
     }
 
+    /// "dnes 14:07" / "včera 14:07" / "15. 10. 14:07".
+    static func dayTime(_ t: Double) -> String {
+        let d = Date(timeIntervalSince1970: t)
+        let cal = Calendar.current
+        let prefix: String
+        if cal.isDateInToday(d) {
+            prefix = "dnes"
+        } else if cal.isDateInYesterday(d) {
+            prefix = "včera"
+        } else {
+            let f = DateFormatter()
+            f.dateFormat = "d. M."
+            prefix = f.string(from: d)
+        }
+        return "\(prefix) \(time(t))"
+    }
+
     static func num(_ v: Double) -> String {
         v == v.rounded() && abs(v) < 1e6 ? String(Int(v)) : String(format: "%g", v)
+    }
+}
+
+/// Viditelná chybová hláška se skutečným textem chyby.
+struct ErrorBanner: View {
+    let title: String
+    let detail: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Label(title, systemImage: "exclamationmark.octagon.fill")
+                .font(.footnote.weight(.semibold))
+            Text(detail)
+                .font(.system(size: 11.5, design: .monospaced))
+                .textSelection(.enabled)
+            Text(ErrorBanner.hint(for: detail))
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
+        .foregroundStyle(Theme.bad)
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.bad.opacity(0.1), in: RoundedRectangle(cornerRadius: 10))
+    }
+
+    static func hint(for detail: String) -> String {
+        if detail.contains("HTTP 401") || detail.contains("HTTP 403") {
+            return "Klíč byl odmítnut: zkontroluj, že je celý (začíná vck_), a že má Vercel tým kartu nebo kredity."
+        }
+        if detail.contains("HTTP 429") { return "Free tier je vytížený: počkej, nebo přidej kredity v AI Gateway." }
+        if detail.contains("HTTP 402") { return "Došly kredity v AI Gateway." }
+        if detail.contains("HTTP 404") { return "Endpoint nenalezen: Jev na tomhle klíči nemusí být dostupný." }
+        return "Pošli tenhle text a podívám se na to."
     }
 }

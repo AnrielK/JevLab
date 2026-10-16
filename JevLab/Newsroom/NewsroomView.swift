@@ -124,8 +124,11 @@ struct ReadCard: View {
                     .background(Theme.jev.opacity(0.12), in: Capsule())
             }
             if let row {
-                Text("\(row.item.source.uppercased()) · \(F.time(row.item.published.timeIntervalSince1970))")
+                Text("\(row.item.source.uppercased()) · \(F.dayTime(row.item.published.timeIntervalSince1970))")
                     .font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary)
+                if let err = row.error {
+                    ErrorBanner(title: "Jev neodpověděl", detail: err)
+                }
             }
             ViewThatFits(in: .horizontal) {
                 HStack(alignment: .top, spacing: 18) { questions(row) }
@@ -362,7 +365,7 @@ struct WireRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: 8) {
-                Text(F.time(row.item.published.timeIntervalSince1970))
+                Text(F.dayTime(row.item.published.timeIntervalSince1970))
                 Text(row.item.source.uppercased()).foregroundStyle(.secondary)
             }
             .font(.system(size: 11, design: .monospaced))

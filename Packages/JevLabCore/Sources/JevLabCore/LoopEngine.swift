@@ -103,6 +103,8 @@ public final class LoopEngine {
     public private(set) var ratePerSecond: Double = 0
     public private(set) var hits = 0
     public private(set) var scored = 0
+    /// Poslední chyba Jev volání (HTTP kód a text), aby se dala ukázat v UI.
+    public private(set) var lastError: String?
 
     @ObservationIgnored private var market = MarketBook()
     @ObservationIgnored private var feed: HyperliquidFeed?
@@ -148,6 +150,7 @@ public final class LoopEngine {
         totalCalls = 0
         latencies = []
         lastMs = nil
+        lastError = nil
         avgMs = nil
         interval = config.pace
         streak = 0
@@ -300,6 +303,7 @@ public final class LoopEngine {
         rec.micro = now.micro
 
         counts[rec.status, default: 0] += 1
+        if let err = rec.error { lastError = err }
         totalCalls += 1
         if let ms = rec.ms {
             latencies.append(ms)
