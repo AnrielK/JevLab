@@ -363,3 +363,49 @@ final class AnalysisTests: XCTestCase {
         XCTAssertTrue(store.summaries().isEmpty)
     }
 }
+
+final class ContextTests: XCTestCase {
+    let day: Int64 = 86_400_000
+
+    func weekly() -> [Hyperliquid.Candle] {
+        let opens: [Double] = [100, 100, 105, 110]
+        let closes: [Double] = [100, 105, 110, 120]
+        return (0..<4).map { k in
+            Hyperliquid.Candle(openMs: Int64(k) * 7 * day, open: opens[k], close: closes[k],
+                               high: closes[k] + 1, low: opens[k] - 1, volume: 1)
+        }
+    }
+
+    func testWeeklyContextUsesOnlyClosedBars() {
+        let f = Features.context(.w1, candles: weekly(), tMs: 22 * day, price: 115)
+        XCTAssertEqual(f["weekly_return_last_bar_bps"] ?? .nan, 476.19, accuracy: 0.011)
+        XCTAssertNil(f["weekly_return_3_bars_bps"])
+        XCTAssertEqual(f["weekly_price_vs_3_bar_mean_bps"] ?? .nan, 952.38, accuracy: 0.011)
+        XCTAssertEqual(f["weekly_position_in_range"] ?? .nan, 1.0, accuracy: 1e-9)
+        XCTAssertEqual(f["weekly_volatility_bps"] ?? .nan, 11.9, accuracy: 0.011)
+        XCTAssertEqual(f["weekly_current_bar_so_far_bps"] ?? .nan, 454.55, accuracy: 0.011)
+        // poslední týden (close 120) se ještě tvoří: jeho zavírací cena se nesmí nikde projevit
+        let later = Features.context(.w1, candles: weekly(), tMs: 28 * day, price: 120)
+        XCTAssertEqual(later["weekly_return_last_bar_bps"] ?? .nan, 1e4 * (120.0 / 110 - 1), accuracy: 0.011)
+        XCTAssertTrue(Features.context(.w1, candles: weekly(), tMs: 8 * day, price: 101).isEmpty)
+    }
+
+    func testMonthCloseUsesCalendar() {
+        XCTAssertEqual(Timeframe.mo1.closeMs(openMs: 1_767_225_600_000), 1_769_904_000_000)
+        XCTAssertEqual(Timeframe.d1.closeMs(openMs: 0), day)
+    }
+
+    func testDailyHorizonWithContext() throws {
+        var daily: [Hyperliquid.Candle] = []
+        for i in 0..<40 {
+            let o: Double = 100 + Double(i)
+            daily.append(Hyperliquid.Candle(openMs: Int64(i) * day, open: o, close: o + 0.5, high: o + 1, low: o - 1, volume: 5))
+        }
+        let s = try XCTUnwrap(Features.state(candles: daily, at: 30, horizon: .d1, context: [.w1: weekly()]))
+        XCTAssertEqual(s["bar_minutes"], 1440)
+        XCTAssertNotNil(s["weekly_return_last_bar_bps"])
+        XCTAssertEqual(Horizon.d1.context, [.h4, .w1, .mo1])
+        XCTAssertTrue(Horizon.d1.question["side"]?.instructions.contains("1-day") ?? false)
+        XCTAssertLessThanOrEqual(Horizon.d1.maxDaysWithContext, Horizon.d1.maxDays)
+    }
+}

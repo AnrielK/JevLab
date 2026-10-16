@@ -9,13 +9,20 @@ public struct HorizonConfig: Sendable, Equatable {
     /// Kolik Jev volání běží souběžně při backtestu.
     public var concurrency: Int = 6
     public var notional: Double = 1000
+    /// Jev vidí i kontext z nižšího a vyšších rámců (např. 4h, týden, měsíc u denního).
+    public var multiTF: Bool = true
 
     public init() {}
 
+    /// Kolik dní historie jde (u kontextu omezuje nižší rámec).
+    public var maxDays: Double { multiTF ? horizon.maxDaysWithContext : horizon.maxDays }
+
     /// Kolik svíček (a tedy Jev volání) backtest projde.
     public var backtestBars: Int {
-        min(Int(days * 1440) / horizon.minutes, 5000 - Features.warmup - 5)
+        max(1, min(Int(min(days, maxDays) * 1440) / horizon.minutes, 5000 - Features.warmup - 5))
     }
+
+    public var contextTimeframes: [Timeframe] { multiTF ? horizon.context : [] }
 }
 
 public enum HorizonStatus: Equatable, Sendable {
@@ -102,6 +109,20 @@ public final class HorizonEngine {
         status = .loading
     }
 
+    // MARK: - Kontext
+
+    /// Stáhne svíčky kontextových rámců od `fromMs` (s rezervou na pár svíček zpět).
+    private func loadContext(fromMs: Int64) async -> [Timeframe: [Hyperliquid.Candle]] {
+        var out: [Timeframe: [Hyperliquid.Candle]] = [:]
+        for tf in config.contextTimeframes {
+            let start = fromMs - Int64(14) * Int64(tf.minutes) * 60_000
+            if let list = try? await Hyperliquid.candles(coin: config.coin, interval: tf.rawValue, startMs: start) {
+                out[tf] = list
+            }
+        }
+        return out
+    }
+
     // MARK: - Backtest
 
     private func runBacktest(_ jev: JevClient) async {
@@ -122,6 +143,8 @@ public final class HorizonEngine {
             return
         }
         if Task.isCancelled { return }
+        let context = await loadContext(fromMs: candles[0].openMs)
+        if Task.isCancelled { return }
         let indices = Array(Features.warmup..<(candles.count - 1))
         total = indices.count
         lastPrice = candles.last?.close
@@ -138,7 +161,7 @@ public final class HorizonEngine {
             let results = await withTaskGroup(of: (Int, JevResult?, String?).self,
                                               returning: [(Int, JevResult?, String?)].self) { group in
                 for i in chunk {
-                    guard let state = Features.state(candles: candles, at: i, horizon: h) else { continue }
+                    guard let state = Features.state(candles: candles, at: i, horizon: h, context: context) else { continue }
                     group.addTask {
                         do {
                             let r = try await jev.ask(state: state.mapValues { $0 as Any }, questions: question,
@@ -158,7 +181,7 @@ public final class HorizonEngine {
                 let c = candles[i]
                 var rec = CallRecord(id: i, t: Double(c.openMs + h.intervalMs) / 1000, side: nil, conf: nil, price: c.close,
                                      retNextBps: rounded(1e4 * (candles[i + 1].close / c.close - 1), 3),
-                                     state: Features.state(candles: candles, at: i, horizon: h))
+                                     state: Features.state(candles: candles, at: i, horizon: h, context: context))
                 if let ans = res?.answers["side"], let s = ans.choice, let side = Side(rawValue: s) {
                     rec.side = side
                     rec.conf = rounded(ans.choiceProbs[s] ?? 0, 3)
@@ -189,7 +212,9 @@ public final class HorizonEngine {
                 let startMs = nowMs - Int64(Features.warmup + 8) * h.intervalMs
                 let candles = Features.closed(try await Hyperliquid.candles(coin: config.coin, interval: h.interval, startMs: startMs),
                                               horizon: h, nowMs: nowMs)
-                if let lastBar = candles.last, lastBar.openMs != lastProcessed, let state = Features.state(candles: candles, at: candles.count - 1, horizon: h) {
+                let context = await loadContext(fromMs: candles.first?.openMs ?? startMs)
+                if let lastBar = candles.last, lastBar.openMs != lastProcessed,
+                   let state = Features.state(candles: candles, at: candles.count - 1, horizon: h, context: context) {
                     lastProcessed = lastBar.openMs
                     lastPrice = lastBar.close
                     // výsledek předchozího rozhodnutí = pohyb do zavření této svíčky
@@ -231,9 +256,13 @@ public final class HorizonEngine {
         guard !saved, !records.isEmpty else { return }
         saved = true
         let r = result
+        let tfs: [String] = config.contextTimeframes.map { $0.label }
+        let ctx: String = tfs.isEmpty ? "" : " + kontext " + tfs.joined(separator: "/")
+        let pct: Int = Int((minConf * 100).rounded())
+        let strategyText: String = "svíčky " + config.horizon.label + ctx + " · práh \(pct) %"
         let summary = RunSummary(
             kind: mode, started: startedAt, ended: Date(), coin: config.coin, horizon: config.horizon,
-            strategy: "svíčky \(config.horizon.label) · práh \(Int((minConf * 100).rounded())) %",
+            strategy: strategyText,
             minConf: minConf, feeRate: feeRate, notional: config.notional,
             calls: records.filter { $0.side != nil }.count, trades: r.trades,
             grossUsd: r.usd(r.grossBps, notional: config.notional), feesUsd: r.usd(r.feesBps, notional: config.notional),
