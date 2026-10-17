@@ -602,9 +602,19 @@ final class RuleLabStoreTests: XCTestCase {
         let csv = back.csv
         XCTAssertTrue(csv.hasPrefix("run_time,timeframe,context,market"))
         XCTAssertTrue(csv.contains(",SOL,"))
-        XCTAssertTrue(csv.contains("Kupit a držet"))
+        XCTAssertTrue(csv.contains("Držet long (stálá pozice)"))
         XCTAssertTrue(csv.contains("PRŮMĚR 1 trhů"))
         store.delete(back.id)
         XCTAssertTrue(store.all().isEmpty)
+    }
+}
+
+final class HoldFixedTests: XCTestCase {
+    func testHoldFixedIsAdditive() {
+        let recs = [10.0, -5, 20].enumerated().map { CallRecord(id: $0.offset, t: Double($0.offset), side: nil, conf: nil, price: 100, retNextBps: $0.element) }
+        XCTAssertEqual(Analysis.holdFixedBps(recs, feeRate: 0.0001), 24, accuracy: 1e-9)
+        // stejné jako strategie „vždy long“
+        let always = Analysis.simulate(recs, targets: [1, 1, 1], feeRate: 0.0001)
+        XCTAssertEqual(always.netBps, 24, accuracy: 1e-9)
     }
 }

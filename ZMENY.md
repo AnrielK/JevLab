@@ -1,5 +1,9 @@
 # Změny
 
+## 0.8.2 · 2026-10-17
+
+- Oprava srovnání v Pravidlech bez AI: strategie se teď porovnávají s držením long se stejnou stálou pozicí $1000 (dřív s úročeným „kupit a držet“, které při násobných růstech strategie znevýhodňovalo). Úročené držení zůstává v CSV jako další sloupec.
+
 ## 0.8.1 · 2026-10-17
 
 - Pravidla bez AI: každý dokončený běh se uloží; tlačítko „Poslat CSV“ (pravidlo × trh, „kupit a držet“ a souhrnné řádky přes trhy). Seznam uložených výsledků s detailem, exportem a mazáním.

@@ -10,6 +10,9 @@ public struct RuleMarketResult: Identifiable, Sendable {
     public var to: Date
     public var buyHoldFull: Double
     public var buyHoldTest: Double
+    /// Držet long se stálou pozicí $1000 (srovnatelné se strategiemi).
+    public var holdFixedFull: Double
+    public var holdFixedTest: Double
     public var results: [RuleResult]
     public var feeRate: Double
     public var id: String { coin }
@@ -65,7 +68,7 @@ public final class RuleLab {
                 let t = r.test?.netBps ?? 0
                 test += t
                 if t > 0 { pos += 1 }
-                if t > m.buyHoldTest { beat += 1 }
+                if t > m.holdFixedTest { beat += 1 }
             }
             return RuleSummary(rule: rule, avgFull: n > 0 ? full / Double(n) : 0, avgTest: n > 0 ? test / Double(n) : 0,
                                positiveTest: pos, beatHoldTest: beat, markets: n)
@@ -154,6 +157,8 @@ public final class RuleLab {
                                 from: records.first?.date ?? Date(), to: records.last?.date ?? Date(),
                                 buyHoldFull: Analysis.buyHoldBps(records),
                                 buyHoldTest: Analysis.buyHoldBps(Array(records[half...])),
+                                holdFixedFull: Analysis.holdFixedBps(records, feeRate: feeRate),
+                                holdFixedTest: Analysis.holdFixedBps(Array(records[half...]), feeRate: feeRate),
                                 results: Analysis.rules(records, feeRate: feeRate), feeRate: feeRate)
     }
 }
@@ -180,6 +185,12 @@ public struct RuleMarketMeta: Codable, Sendable, Equatable {
     public var feeRate: Double
     public var buyHoldFull: Double
     public var buyHoldTest: Double
+    public var holdFixedFull: Double?
+    public var holdFixedTest: Double?
+
+    /// Srovnávací základ pro strategie (u starších uložených výsledků úročené držení).
+    public var benchFull: Double { holdFixedFull ?? buyHoldFull }
+    public var benchTest: Double { holdFixedTest ?? buyHoldTest }
 }
 
 /// Uložený běh „Pravidla bez AI“.
@@ -199,7 +210,8 @@ public struct RuleLabRun: Codable, Sendable, Identifiable {
         self.errors = errors
         markets = results.map {
             RuleMarketMeta(coin: $0.coin, bars: $0.bars, from: $0.from, to: $0.to, feeRate: $0.feeRate,
-                           buyHoldFull: $0.buyHoldFull, buyHoldTest: $0.buyHoldTest)
+                           buyHoldFull: $0.buyHoldFull, buyHoldTest: $0.buyHoldTest,
+                           holdFixedFull: $0.holdFixedFull, holdFixedTest: $0.holdFixedTest)
         }
         rows = results.flatMap { m in
             m.results.map { r in
@@ -224,7 +236,7 @@ public struct RuleLabRun: Codable, Sendable, Identifiable {
             let t = r.netTestBps ?? 0
             test += t
             if t > 0 { pos += 1 }
-            if let m = markets.first(where: { $0.coin == r.coin }), t > m.buyHoldTest { beat += 1 }
+            if let m = markets.first(where: { $0.coin == r.coin }), t > m.benchTest { beat += 1 }
         }
         return (n > 0 ? full / Double(n) : 0, n > 0 ? test / Double(n) : 0, pos, beat, n)
     }
@@ -235,19 +247,19 @@ public struct RuleLabRun: Codable, Sendable, Identifiable {
         let day = DateFormatter()
         day.dateFormat = "yyyy-MM-dd"
         func f(_ x: Double?) -> String { x.map { String(format: "%.1f", $0) } ?? "" }
-        var lines = ["run_time,timeframe,context,market,from,to,bars,fee_bps,rule,net_full_bps,net_2nd_half_bps,trades,signals,hit_rate,buyhold_full_bps,buyhold_2nd_half_bps"]
+        var lines = ["run_time,timeframe,context,market,from,to,bars,fee_bps,rule,net_full_bps,net_2nd_half_bps,trades,signals,hit_rate,hold_fixed_full_bps,hold_fixed_2nd_half_bps,buyhold_compounded_full_bps,buyhold_compounded_2nd_half_bps"]
         let head = "\(iso.string(from: date)),\(horizon.shortLabel),\(multiTF ? 1 : 0)"
         for m in markets {
             let base = "\(head),\(Instrument.find(m.coin).label),\(day.string(from: m.from)),\(day.string(from: m.to)),\(m.bars),\(String(format: "%.2f", m.feeRate * 1e4))"
             for r in rows where r.coin == m.coin {
-                lines.append("\(base),\(r.ruleName),\(f(r.netFullBps)),\(f(r.netTestBps)),\(r.trades),\(r.signals),\(r.hitRate.map { String(format: "%.3f", $0) } ?? ""),\(f(m.buyHoldFull)),\(f(m.buyHoldTest))")
+                lines.append("\(base),\(r.ruleName),\(f(r.netFullBps)),\(f(r.netTestBps)),\(r.trades),\(r.signals),\(r.hitRate.map { String(format: "%.3f", $0) } ?? ""),\(f(m.benchFull)),\(f(m.benchTest)),\(f(m.buyHoldFull)),\(f(m.buyHoldTest))")
             }
-            lines.append("\(base),Kupit a držet,\(f(m.buyHoldFull)),\(f(m.buyHoldTest)),1,,,\(f(m.buyHoldFull)),\(f(m.buyHoldTest))")
+            lines.append("\(base),Držet long (stálá pozice),\(f(m.benchFull)),\(f(m.benchTest)),1,,,\(f(m.benchFull)),\(f(m.benchTest)),\(f(m.buyHoldFull)),\(f(m.buyHoldTest))")
         }
         for rule in RuleStrategy.all {
             let s = summary(rule: rule.id)
             guard s.n > 0 else { continue }
-            lines.append("\(head),PRŮMĚR \(s.n) trhů,,,,,\(rule.name),\(f(s.avgFull)),\(f(s.avgTest)),,,v plusu \(s.positive)/\(s.n) · nad držením \(s.beatHold)/\(s.n),,")
+            lines.append("\(head),PRŮMĚR \(s.n) trhů,,,,,\(rule.name),\(f(s.avgFull)),\(f(s.avgTest)),,,v plusu \(s.positive)/\(s.n) · nad držením \(s.beatHold)/\(s.n),,,,")
         }
         return lines.joined(separator: "\n") + "\n"
     }

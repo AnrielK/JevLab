@@ -206,14 +206,14 @@ struct SavedRunView: View {
                                     Text(r.ruleName)
                                     Text(F.bps(r.netFullBps, digits: 0)).foregroundStyle(r.netFullBps > 0 ? Theme.good : Theme.bad)
                                     Text(r.netTestBps.map { F.bps($0, digits: 0) } ?? "–")
-                                        .foregroundStyle((r.netTestBps ?? 0) > m.buyHoldTest ? Theme.good : Color.primary)
+                                        .foregroundStyle((r.netTestBps ?? 0) > m.benchTest ? Theme.good : Color.primary)
                                     Text("\(r.trades)×").foregroundStyle(.secondary)
                                 }
                             }
                             GridRow {
-                                Text("Kupit a držet").foregroundStyle(.secondary)
-                                Text(F.bps(m.buyHoldFull, digits: 0)).foregroundStyle(.secondary)
-                                Text(F.bps(m.buyHoldTest, digits: 0)).foregroundStyle(.secondary)
+                                Text("Držet long").foregroundStyle(.secondary)
+                                Text(F.bps(m.benchFull, digits: 0)).foregroundStyle(.secondary)
+                                Text(F.bps(m.benchTest, digits: 0)).foregroundStyle(.secondary)
                                 Text("")
                             }
                         }
@@ -272,9 +272,9 @@ struct SummaryCard: View {
     let markets: [RuleMarketResult]
 
     var body: some View {
-        let holdTest = markets.map(\.buyHoldTest).reduce(0, +) / Double(max(1, markets.count))
+        let holdTest = markets.map(\.holdFixedTest).reduce(0, +) / Double(max(1, markets.count))
         Card("Souhrn přes \(markets.count) trhů") {
-            Text("Průměr po poplatcích v bps na pozici. „2. pol.“ = druhá polovina historie. Počty říkají, na kolika trzích bylo pravidlo na 2. polovině v plusu a kolikrát porazilo „kupit a držet“.")
+            Text("Průměr po poplatcích v bps na pozici. „2. pol.“ = druhá polovina historie. Počty říkají, na kolika trzích bylo pravidlo na 2. polovině v plusu a kolikrát porazilo držení long se stejnou stálou pozicí $1000.")
                 .font(.footnote).foregroundStyle(.secondary)
             Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 6) {
                 GridRow {
@@ -294,8 +294,8 @@ struct SummaryCard: View {
                     }
                 }
                 GridRow {
-                    Text("Kupit a držet").foregroundStyle(.secondary)
-                    Text(F.bps(markets.map(\.buyHoldFull).reduce(0, +) / Double(max(1, markets.count)), digits: 0)).foregroundStyle(.secondary)
+                    Text("Držet long").foregroundStyle(.secondary)
+                    Text(F.bps(markets.map(\.holdFixedFull).reduce(0, +) / Double(max(1, markets.count)), digits: 0)).foregroundStyle(.secondary)
                     Text(F.bps(holdTest, digits: 0)).foregroundStyle(.secondary)
                     Text("")
                     Text("")
@@ -322,14 +322,14 @@ struct MarketCard: View {
                         Text(r.rule.name)
                         Text(F.bps(r.full.netBps, digits: 0)).foregroundStyle(r.full.netBps > 0 ? Theme.good : Theme.bad)
                         Text(r.test.map { F.bps($0.netBps, digits: 0) } ?? "–")
-                            .foregroundStyle((r.test?.netBps ?? 0) > market.buyHoldTest ? Theme.good : Color.primary)
+                            .foregroundStyle((r.test?.netBps ?? 0) > market.holdFixedTest ? Theme.good : Color.primary)
                         Text("\(r.full.trades)×").foregroundStyle(.secondary)
                     }
                 }
                 GridRow {
-                    Text("Kupit a držet").foregroundStyle(.secondary)
-                    Text(F.bps(market.buyHoldFull, digits: 0)).foregroundStyle(.secondary)
-                    Text(F.bps(market.buyHoldTest, digits: 0)).foregroundStyle(.secondary)
+                    Text("Držet long").foregroundStyle(.secondary)
+                    Text(F.bps(market.holdFixedFull, digits: 0)).foregroundStyle(.secondary)
+                    Text(F.bps(market.holdFixedTest, digits: 0)).foregroundStyle(.secondary)
                     Text("")
                 }
             }

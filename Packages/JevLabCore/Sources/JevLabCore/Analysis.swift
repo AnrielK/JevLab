@@ -159,6 +159,12 @@ public enum Analysis {
         thresholds.map { ThresholdPoint(threshold: $0, result: simulate(records, minConf: $0, feeRate: feeRate, mode: mode)) }
     }
 
+    /// Držet long se stálou pozicí (stejně jako simulace strategií: každou svíčku $1000, bez úročení),
+    /// minus jeden vstupní poplatek. Férový základ pro strategie s pevnou velikostí pozice.
+    public static func holdFixedBps(_ records: [CallRecord], feeRate: Double) -> Double {
+        records.reduce(0) { $0 + ($1.retNextBps ?? 0) } - feeRate * 1e4
+    }
+
     /// Kupit a držet za stejné období (srovnávací základ).
     public static func buyHoldBps(_ records: [CallRecord]) -> Double {
         var g = 1.0
