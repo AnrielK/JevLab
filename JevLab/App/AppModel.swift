@@ -25,6 +25,12 @@ final class AppModel {
     let newsroom = NewsroomEngine()
     let horizon = HorizonEngine()
     let ruleLab = RuleLab()
+    let ruleStore = RuleLabStore.standard()
+    /// Uložené výsledky „Pravidla bez AI“.
+    private(set) var ruleRuns: [RuleLabRun] = []
+    /// Oblíbené akcie (zobrazují se ve výběru trhu; ostatní přes vyhledávání).
+    var favoriteStocks: [String] = UserDefaults.standard.stringArray(forKey: "favoriteStocks")
+        ?? ["xyz:NVDA", "xyz:TSLA", "xyz:AAPL"]
     let store = RunStore.standard()
 
     var horizonConfig = HorizonConfig()
@@ -57,6 +63,8 @@ final class AppModel {
         refreshKeys()
         runs = store.summaries()
         loop.onFinish = { [weak self] detail in self?.saveRun(detail) }
+        ruleRuns = ruleStore.all()
+        ruleLab.onFinish = { [weak self] run in self?.saveRuleRun(run) }
         Task { await self.loadStocks() }
         horizon.onFinish = { [weak self] detail in self?.saveRun(detail) }
     }
@@ -71,6 +79,30 @@ final class AppModel {
             saveError = "Běh se nepodařilo uložit: \(error.localizedDescription)"
         }
         runs = store.summaries()
+    }
+
+    func saveRuleRun(_ run: RuleLabRun) {
+        try? ruleStore.save(run)
+        ruleRuns = ruleStore.all()
+    }
+
+    func deleteRuleRun(_ id: UUID) {
+        ruleStore.delete(id)
+        ruleRuns = ruleStore.all()
+    }
+
+    func toggleFavorite(_ coin: String) {
+        if let i = favoriteStocks.firstIndex(of: coin) {
+            favoriteStocks.remove(at: i)
+        } else {
+            favoriteStocks.append(coin)
+        }
+        UserDefaults.standard.set(favoriteStocks, forKey: "favoriteStocks")
+    }
+
+    /// Oblíbené akcie jako trhy (pořadí podle přidání).
+    var favoriteInstruments: [Instrument] {
+        favoriteStocks.map { Instrument(coin: $0, isStock: true) }
     }
 
     func deleteRun(_ id: UUID) {

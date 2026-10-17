@@ -191,6 +191,16 @@ struct HorizonView: View {
 struct InstrumentPicker: View {
     @Environment(AppModel.self) private var model
     @Binding var coin: String
+    @State private var searching = false
+
+    /// Akcie v nabídce: oblíbené + aktuálně vybraná (když v oblíbených není).
+    private var stockOptions: [Instrument] {
+        var list = model.favoriteInstruments
+        if Instrument.find(coin).isStock, !list.contains(where: { $0.coin == coin }) {
+            list.append(Instrument(coin: coin, isStock: true))
+        }
+        return list
+    }
 
     var body: some View {
         let inst = Instrument.find(coin)
@@ -199,23 +209,31 @@ struct InstrumentPicker: View {
                 Section("Krypto") {
                     ForEach(Instrument.crypto) { Text($0.label).tag($0.coin) }
                 }
-                Section("US akcie (perpy na Hyperliquid)") {
-                    ForEach(model.stocks) { Text($0.label).tag($0.coin) }
+                if !stockOptions.isEmpty {
+                    Section("Akcie (oblíbené)") {
+                        ForEach(stockOptions) { Text($0.label).tag($0.coin) }
+                    }
                 }
             }
             .pickerStyle(.menu)
+            Button {
+                searching = true
+            } label: {
+                Label("Akcie…", systemImage: "magnifyingglass")
+            }
+            .buttonStyle(.bordered)
             if inst.isStock {
                 let open = USMarketHours.isOpen()
-                Label(open ? "burza otevřená" : "burza zavřená", systemImage: open ? "building.columns.fill" : "moon.fill")
-                    .font(.caption)
+                Image(systemName: open ? "building.columns.fill" : "moon.fill")
                     .foregroundStyle(open ? Theme.good : Theme.late)
+                    .accessibilityLabel(open ? "burza otevřená" : "burza zavřená")
             }
         }
-        if let note = model.stocksNote, inst.isStock {
-            Text(note).font(.caption).foregroundStyle(Theme.late)
+        .sheet(isPresented: $searching) {
+            StockSearchSheet(selection: nil, onPick: { coin = $0 })
         }
         if inst.isStock {
-            Text("Perp sledující akcii přes oracle, ne skutečná akcie. Obchoduje se 24/7; mimo seanci NYSE cena nesleduje burzu a po otevření bývají skoky. Poplatky 2× vyšší než u krypta.")
+            Text("\(USMarketHours.isOpen() ? "Burza otevřená." : "Burza zavřená.") Perp sledující akcii přes oracle, ne skutečná akcie: obchoduje se 24/7, mimo seanci NYSE cena nesleduje burzu a po otevření bývají skoky. Poplatky 2× vyšší než u krypta.")
                 .font(.caption).foregroundStyle(.secondary)
         }
     }

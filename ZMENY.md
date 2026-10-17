@@ -1,5 +1,10 @@
 # Změny
 
+## 0.8.1 · 2026-10-17
+
+- Pravidla bez AI: každý dokončený běh se uloží; tlačítko „Poslat CSV“ (pravidlo × trh, „kupit a držet“ a souhrnné řádky přes trhy). Seznam uložených výsledků s detailem, exportem a mazáním.
+- Přehlednější výběr akcií: místo dlouhého seznamu vyhledávání podle tickeru s oblíbenými (★). Ve výběru trhu jsou jen krypto + oblíbené akcie a tlačítko „Akcie…“; v Pravidlech se akcie přidávají přes „Přidat“.
+
 ## 0.8.0 · 2026-10-17
 
 - „Pravidla bez AI“ (z Horizontu): backtest všech pravidel na maximální historii Hyperliquid (~5000 svíček na rámec) pro vybrané trhy najednou (krypto i akcie), rámce 1h/4h/1D, volitelně s kontextem. Bez Jev a Clauda, takže zdarma. Souhrn přes trhy: průměr po poplatcích, kolikrát v plusu na 2. polovině a kolikrát porazilo „kupit a držet“; detail pro každý trh.
