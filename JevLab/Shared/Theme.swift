@@ -129,6 +129,9 @@ struct ErrorBanner: View {
             return "Klíč byl odmítnut: zkontroluj, že je celý (začíná vck_), a že má Vercel tým kartu nebo kredity."
         }
         if detail.contains("HTTP 429") { return "Free tier je vytížený: počkej, nebo přidej kredity v AI Gateway." }
+        if detail.localizedCaseInsensitiveContains("budget exceeded") {
+            return "Překročen rozpočet ve Vercelu (AI Gateway → Budgets & Spend). Zvyš limit, nebo počkej na nové období; běh se zastavil."
+        }
         if detail.contains("HTTP 402") { return "Došly kredity v AI Gateway." }
         if detail.localizedCaseInsensitiveContains("timed out") {
             return "Jev neodpověděl do 5 s (slabší signál nebo vytížený server). Občas se to stane, smyčka pokračuje dál."

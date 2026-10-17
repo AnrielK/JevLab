@@ -539,3 +539,13 @@ final class RulesAndModelTests: XCTestCase {
         XCTAssertGreaterThan(rep.test.netBps, 0)
     }
 }
+
+final class FatalErrorTests: XCTestCase {
+    func testFatalDetection() {
+        XCTAssertTrue(JevError(status: 402, message: "Team budget exceeded").isFatal)
+        XCTAssertFalse(JevError(status: 429, message: "slow down").isFatal)
+        XCTAssertTrue(JevError.isFatal(JevError(status: 402, message: "x").localizedDescription))
+        XCTAssertFalse(JevError.isFatal("The request timed out."))
+        XCTAssertFalse(JevError.isFatal(nil))
+    }
+}

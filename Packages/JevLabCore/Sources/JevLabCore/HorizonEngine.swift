@@ -250,6 +250,10 @@ public final class HorizonEngine {
                     } else {
                         claudeErrors += 1
                         lastError = "Claude: \(err ?? "?")"
+                        if JevError.isFatal(err) {
+                            status = .failed("Backtest zastaven (Claude): \(err ?? "")")
+                            return
+                        }
                     }
                 }
                 progress += chunk.count
@@ -258,6 +262,7 @@ public final class HorizonEngine {
 
         // 2) Jev rozhodnutí na každé svíčce
         var done: [CallRecord] = []
+        var fatal: String?
         let question = h.question
         let width = max(1, config.concurrency)
         var start = 0
@@ -300,12 +305,18 @@ public final class HorizonEngine {
                     errors += 1
                     lastError = err
                     rec.action = "chyba"
+                    if JevError.isFatal(err) { fatal = err }
                 }
                 done.append(rec)
             }
             done.sort { $0.t < $1.t }
             records = done
             progress = min(total, claudeIdx.count + start)
+            if let f = fatal {
+                status = .failed("Backtest zastaven: \(f)")
+                finishAndSave()
+                return
+            }
         }
         status = .done
         finishAndSave()
@@ -358,6 +369,12 @@ public final class HorizonEngine {
                         errors += 1
                         lastError = error.localizedDescription
                         rec.action = "chyba"
+                        if (error as? JevError)?.isFatal == true {
+                            status = .failed("Živý běh zastaven: \(error.localizedDescription)")
+                            records.append(rec)
+                            finishAndSave()
+                            return
+                        }
                     }
                     if Task.isCancelled { return }
                     records.append(rec)
@@ -378,7 +395,8 @@ public final class HorizonEngine {
     // MARK: - Uložení
 
     private func finishAndSave() {
-        guard !saved, !records.isEmpty else { return }
+        // běh bez jediné odpovědi Jev (např. došel rozpočet) se neukládá
+        guard !saved, records.contains(where: { $0.side != nil }) else { return }
         saved = true
         let r = result
         let tfs: [String] = config.contextTimeframes.map { $0.label }

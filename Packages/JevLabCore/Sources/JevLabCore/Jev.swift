@@ -82,6 +82,14 @@ public struct JevError: Error, LocalizedError, Sendable {
     }
 
     public var isThrottled: Bool { status == 429 }
+    /// Chyby, u kterých nemá smysl pokračovat (došel rozpočet/kredity, neplatný klíč).
+    public var isFatal: Bool { status == 401 || status == 402 || status == 403 }
+
+    /// Fatální chyba poznaná z textu (když se chyba předává jako řetězec).
+    public static func isFatal(_ text: String?) -> Bool {
+        guard let t = text else { return false }
+        return t.hasPrefix("HTTP 401") || t.hasPrefix("HTTP 402") || t.hasPrefix("HTTP 403")
+    }
     public var isAuth: Bool { status == 401 || status == 403 }
     public var errorDescription: String? {
         if let s = status { return "HTTP \(s): \(message)" }

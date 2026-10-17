@@ -84,7 +84,7 @@ struct HorizonView: View {
                     }
                     Slider(value: $bindable.horizonConfig.days, in: 1...max(2, min(1500, cfg.maxDays.rounded(.down))), step: 1)
                         .disabled(engine.isActive)
-                    Text("≈ \(cfg.backtestBars) Jev volání · odhad ~$\(String(format: "%.2f", Double(cfg.backtestBars) * 0.00002)) podle ceny z tvého testu · max \(Int(min(1500, cfg.maxDays))) dní (Hyperliquid drží ~5000 svíček na rámec; u akciových perpů je historie kratší)")
+                    Text("≈ \(cfg.backtestBars) Jev volání · Jev odhadem ~$\(String(format: "%.2f", Double(cfg.backtestBars) * 0.00002)) (Claude se platí zvlášť a je výrazně dražší; skutečnou útratu ukazuje Vercel → Spend by Model) · max \(Int(min(1500, cfg.maxDays))) dní (Hyperliquid drží ~5000 svíček na rámec; u akciových perpů je historie kratší)")
                         .font(.caption).foregroundStyle(.secondary)
                 }
             } else {

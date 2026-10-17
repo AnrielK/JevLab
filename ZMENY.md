@@ -1,5 +1,10 @@
 # Změny
 
+## 0.7.1 · 2026-10-17
+
+- Při vyčerpaném rozpočtu/kreditech nebo odmítnutém klíči (HTTP 401/402/403) se backtest, živý horizont i smyčka hned zastaví místo stovek zbytečných volání; běh bez jediné odpovědi Jev se neukládá do Historie.
+- Srozumitelná hláška pro „Team budget exceeded“; odhad ceny backtestu jasně říká, že je jen za Jev (Claude zvlášť).
+
 ## 0.7.0 · 2026-10-16
 
 - Kombinovaná pravidla nad indikátory: odraz od supportu / odmítnutí u rezistence s RSI, průraz (½ ATR od 50svíčkového extrému + sklon MA20), trend MA, RSI návrat, týdenní trend + denní pullback. Vyhodnocení po poplatcích na celém období i druhé polovině, bez Jev volání.

@@ -327,6 +327,17 @@ public final class LoopEngine {
             rec.status = res.latencyMs <= config.lateMs ? .ok : .late
         } catch let e as JevError {
             rec.status = e.isThrottled ? .throttled : .error
+            if e.isFatal, gen == generation, status == .running {
+                lastError = String(e.localizedDescription.prefix(160))
+                status = .failed("Smyčka zastavena: \(e.localizedDescription.prefix(200))")
+                runTask?.cancel()
+                runTask = nil
+                tickerTask?.cancel()
+                tickerTask = nil
+                feed?.stop()
+                feed = nil
+                brain?.stop()
+            }
             rec.error = String(e.localizedDescription.prefix(160))
         } catch {
             rec.status = .error
