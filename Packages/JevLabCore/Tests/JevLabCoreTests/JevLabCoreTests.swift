@@ -618,3 +618,49 @@ final class HoldFixedTests: XCTestCase {
         XCTAssertEqual(always.netBps, 24, accuracy: 1e-9)
     }
 }
+
+final class TrendLabTests: XCTestCase {
+    func candles(_ n: Int, slope: Double) -> [Hyperliquid.Candle] {
+        var out: [Hyperliquid.Candle] = []
+        var prev = 100.0
+        for i in 0..<n {
+            let c: Double = 100 + slope * Double(i) + 2 * sin(Double(i) / 6)
+            out.append(Hyperliquid.Candle(openMs: Int64(i) * 86_400_000, open: prev, close: c,
+                                          high: max(prev, c) + 0.3, low: min(prev, c) - 0.3, volume: 1))
+            prev = c
+        }
+        return out
+    }
+
+    func testVariantsAndDrawdown() throws {
+        let recs: [CallRecord] = [
+            CallRecord(id: 0, t: 0, side: nil, conf: nil, price: 100, retNextBps: 10,
+                       state: ["ma20_dist_bps": -5, "ma50_dist_bps": -5, "ma20_slope_5bars_bps": -1, "atr14_bps": 100]),
+            CallRecord(id: 1, t: 1, side: nil, conf: nil, price: 100, retNextBps: -10,
+                       state: ["ma20_dist_bps": 5, "ma50_dist_bps": 5, "ma20_slope_5bars_bps": 1, "atr14_bps": 200]),
+        ]
+        let ls = TrendMath.targets(recs, variant: TrendVariant(ruleID: "trend", direction: .longShort, sizing: .fixed))
+        XCTAssertEqual(ls, [-1, 1])
+        let lo = TrendMath.targets(recs, variant: TrendVariant(ruleID: "trend", direction: .longOnly, sizing: .fixed))
+        XCTAssertEqual(lo, [0, 1])
+        // medián ATR = 200 → první svíčka 2×, druhá 1×
+        let atr = TrendMath.targets(recs, variant: TrendVariant(ruleID: "trend", direction: .longShort, sizing: .atr))
+        XCTAssertEqual(atr, [-2, 1])
+
+        var r = SimResult()
+        r.equity = [SimPoint(t: 0, netUsd: 5), SimPoint(t: 1, netUsd: 12), SimPoint(t: 2, netUsd: 4), SimPoint(t: 3, netUsd: 9)]
+        XCTAssertEqual(TrendMath.maxDrawdown(r), 8, accuracy: 1e-9)
+        XCTAssertEqual(TrendVariant.all.count, 8)
+    }
+
+    func testReportOnUptrend() throws {
+        let rep = try XCTUnwrap(TrendMath.report(coin: "BTC", horizon: .d1, candles: candles(400, slope: 0.3), feeRate: 0.00045))
+        XCTAssertEqual(rep.variants.count, 8)
+        let trendLong = try XCTUnwrap(rep.variants.first { $0.variant == TrendVariant(ruleID: "trend", direction: .longOnly, sizing: .fixed) })
+        XCTAssertGreaterThan(trendLong.full.netBps, 0)
+        XCTAssertGreaterThan(rep.holdFull.netBps, 0)
+        XCTAssertNotNil(rep.current[trendLong.variant.id])
+        XCTAssertTrue(TrendMath.csv(rep).contains("Držet long (stálá pozice)"))
+        XCTAssertGreaterThan(rep.years, 1)
+    }
+}
