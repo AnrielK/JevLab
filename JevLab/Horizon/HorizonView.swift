@@ -12,6 +12,19 @@ struct HorizonView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 12) {
+                    NavigationLink {
+                        RuleLabView()
+                    } label: {
+                        HStack {
+                            Label("Pravidla bez AI · všechny trhy, zdarma", systemImage: "function")
+                            Spacer()
+                            Image(systemName: "chevron.right").foregroundStyle(.secondary)
+                        }
+                        .padding(14)
+                        .background(Theme.card, in: RoundedRectangle(cornerRadius: 16))
+                        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Theme.jev.opacity(0.45)))
+                    }
+                    .buttonStyle(.plain)
                     controls(engine)
                     if !engine.records.isEmpty {
                         if let c = engine.lastClaude {

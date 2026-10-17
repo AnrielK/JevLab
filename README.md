@@ -4,7 +4,7 @@ Nativní aplikace pro **macOS a iPhone** postavená podle *Jev Starteru*: živý
 
 **Jen papírové obchodování.** Aplikace čte veřejná data Hyperliquid a fills simuluje se skutečnými poplatky. Nikdy neposílá objednávku a nepotřebuje účet na burze. Není to finanční poradenství.
 
-## Co umí (0.7)
+## Co umí (0.8)
 
 | Záložka | Co dělá |
 |---|---|

@@ -24,6 +24,7 @@ final class AppModel {
     let loop = LoopEngine()
     let newsroom = NewsroomEngine()
     let horizon = HorizonEngine()
+    let ruleLab = RuleLab()
     let store = RunStore.standard()
 
     var horizonConfig = HorizonConfig()

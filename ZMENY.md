@@ -1,5 +1,10 @@
 # Změny
 
+## 0.8.0 · 2026-10-17
+
+- „Pravidla bez AI“ (z Horizontu): backtest všech pravidel na maximální historii Hyperliquid (~5000 svíček na rámec) pro vybrané trhy najednou (krypto i akcie), rámce 1h/4h/1D, volitelně s kontextem. Bez Jev a Clauda, takže zdarma. Souhrn přes trhy: průměr po poplatcích, kolikrát v plusu na 2. polovině a kolikrát porazilo „kupit a držet“; detail pro každý trh.
+- Rychlejší výpočet kontextu z vyšších rámců (jen okno posledních svíček místo celé historie).
+
 ## 0.7.1 · 2026-10-17
 
 - Při vyčerpaném rozpočtu/kreditech nebo odmítnutém klíči (HTTP 401/402/403) se backtest, živý horizont i smyčka hned zastaví místo stovek zbytečných volání; běh bez jediné odpovědi Jev se neukládá do Historie.
