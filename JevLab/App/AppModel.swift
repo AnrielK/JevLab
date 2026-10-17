@@ -25,6 +25,7 @@ final class AppModel {
     let newsroom = NewsroomEngine()
     let horizon = HorizonEngine()
     let ruleLab = RuleLab()
+    let trendLab = TrendLab()
     let ruleStore = RuleLabStore.standard()
     /// Uložené výsledky „Pravidla bez AI“.
     private(set) var ruleRuns: [RuleLabRun] = []

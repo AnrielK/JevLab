@@ -13,6 +13,19 @@ struct HorizonView: View {
             ScrollView {
                 VStack(spacing: 12) {
                     NavigationLink {
+                        TrendLabView()
+                    } label: {
+                        HStack {
+                            Label("Trend strategie · signál a varianty, zdarma", systemImage: "chart.line.uptrend.xyaxis")
+                            Spacer()
+                            Image(systemName: "chevron.right").foregroundStyle(.secondary)
+                        }
+                        .padding(14)
+                        .background(Theme.card, in: RoundedRectangle(cornerRadius: 16))
+                        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Theme.good.opacity(0.45)))
+                    }
+                    .buttonStyle(.plain)
+                    NavigationLink {
                         RuleLabView()
                     } label: {
                         HStack {

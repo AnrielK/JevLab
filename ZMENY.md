@@ -1,5 +1,10 @@
 # Změny
 
+## 0.9.0 · 2026-10-17
+
+- Trend strategie (z Horizontu, zdarma, bez AI): Trend MA a Průraz na celé historii Hyperliquid v 8 variantách (long/short vs jen long, stálá pozice vs velikost podle ATR). Pro každou výsledek za rok, na 2. polovině, největší propad, obchody a čas v pozici; srovnání s držením long; graf kapitálu; export CSV.
+- Dnešní signál vybrané varianty z poslední uzavřené svíčky (LONG/SHORT/FLAT, velikost, od kdy v pozici, vzdálenost od MA20/MA50). Papírově, nic se neobchoduje.
+
 ## 0.8.2 · 2026-10-17
 
 - Oprava srovnání v Pravidlech bez AI: strategie se teď porovnávají s držením long se stejnou stálou pozicí $1000 (dřív s úročeným „kupit a držet“, které při násobných růstech strategie znevýhodňovalo). Úročené držení zůstává v CSV jako další sloupec.
