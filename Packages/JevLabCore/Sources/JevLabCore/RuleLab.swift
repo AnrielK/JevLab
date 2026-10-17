@@ -46,6 +46,9 @@ public final class RuleLab {
     public private(set) var horizon: Horizon = .d1
 
     @ObservationIgnored private var task: Task<Void, Never>?
+    /// Zavolá se s hotovým během (pro uložení).
+    @ObservationIgnored public var onFinish: (@MainActor (RuleLabRun) -> Void)?
+    @ObservationIgnored private var multiTF = true
 
     public init() {}
 
@@ -72,6 +75,7 @@ public final class RuleLab {
     public func run(coins: [String], horizon: Horizon, multiTF: Bool) {
         task?.cancel()
         self.horizon = horizon
+        self.multiTF = multiTF
         results = []
         errors = []
         status = .running
@@ -94,14 +98,23 @@ public final class RuleLab {
             }
             self?.progressText = ""
             self?.status = .done
+            self?.finish()
         }
     }
 
     public func stop() {
         task?.cancel()
         task = nil
-        if status == .running { status = .done }
+        if status == .running {
+            status = .done
+            finish()
+        }
         progressText = ""
+    }
+
+    private func finish() {
+        guard !results.isEmpty else { return }
+        onFinish?(RuleLabRun(date: Date(), horizon: horizon, multiTF: multiTF, results: results, errors: errors))
     }
 
     nonisolated static func download(coin: String, horizon: Horizon, multiTF: Bool) async throws
@@ -142,5 +155,150 @@ public final class RuleLab {
                                 buyHoldFull: Analysis.buyHoldBps(records),
                                 buyHoldTest: Analysis.buyHoldBps(Array(records[half...])),
                                 results: Analysis.rules(records, feeRate: feeRate), feeRate: feeRate)
+    }
+}
+
+// MARK: - Uložené výsledky
+
+/// Jeden řádek výsledku: pravidlo × trh (ploché, aby šlo uložit a exportovat).
+public struct RuleRow: Codable, Sendable, Equatable {
+    public var coin: String
+    public var rule: String
+    public var ruleName: String
+    public var netFullBps: Double
+    public var netTestBps: Double?
+    public var trades: Int
+    public var signals: Int
+    public var hitRate: Double?
+}
+
+public struct RuleMarketMeta: Codable, Sendable, Equatable {
+    public var coin: String
+    public var bars: Int
+    public var from: Date
+    public var to: Date
+    public var feeRate: Double
+    public var buyHoldFull: Double
+    public var buyHoldTest: Double
+}
+
+/// Uložený běh „Pravidla bez AI“.
+public struct RuleLabRun: Codable, Sendable, Identifiable {
+    public var id = UUID()
+    public var date: Date
+    public var horizon: Horizon
+    public var multiTF: Bool
+    public var markets: [RuleMarketMeta]
+    public var rows: [RuleRow]
+    public var errors: [String]
+
+    public init(date: Date, horizon: Horizon, multiTF: Bool, results: [RuleMarketResult], errors: [String]) {
+        self.date = date
+        self.horizon = horizon
+        self.multiTF = multiTF
+        self.errors = errors
+        markets = results.map {
+            RuleMarketMeta(coin: $0.coin, bars: $0.bars, from: $0.from, to: $0.to, feeRate: $0.feeRate,
+                           buyHoldFull: $0.buyHoldFull, buyHoldTest: $0.buyHoldTest)
+        }
+        rows = results.flatMap { m in
+            m.results.map { r in
+                RuleRow(coin: m.coin, rule: r.rule.id, ruleName: r.rule.name, netFullBps: r.full.netBps,
+                        netTestBps: r.test?.netBps, trades: r.full.trades, signals: r.signals, hitRate: r.full.hitRate)
+            }
+        }
+    }
+
+    public var title: String {
+        let coins = markets.map { Instrument.find($0.coin).label }
+        let list = coins.count > 4 ? coins.prefix(4).joined(separator: ", ") + " +\(coins.count - 4)" : coins.joined(separator: ", ")
+        return "\(horizon.shortLabel)\(multiTF ? " + kontext" : "") · \(list)"
+    }
+
+    /// Souhrn pravidla přes trhy (průměry, kolikrát v plusu / nad „kupit a držet“ na 2. polovině).
+    public func summary(rule: String) -> (avgFull: Double, avgTest: Double, positive: Int, beatHold: Int, n: Int) {
+        var full = 0.0, test = 0.0, pos = 0, beat = 0, n = 0
+        for r in rows where r.rule == rule {
+            n += 1
+            full += r.netFullBps
+            let t = r.netTestBps ?? 0
+            test += t
+            if t > 0 { pos += 1 }
+            if let m = markets.first(where: { $0.coin == r.coin }), t > m.buyHoldTest { beat += 1 }
+        }
+        return (n > 0 ? full / Double(n) : 0, n > 0 ? test / Double(n) : 0, pos, beat, n)
+    }
+
+    /// CSV: jeden řádek pravidlo × trh + řádky „kupit a držet“ a souhrn přes trhy.
+    public var csv: String {
+        let iso = ISO8601DateFormatter()
+        let day = DateFormatter()
+        day.dateFormat = "yyyy-MM-dd"
+        func f(_ x: Double?) -> String { x.map { String(format: "%.1f", $0) } ?? "" }
+        var lines = ["run_time,timeframe,context,market,from,to,bars,fee_bps,rule,net_full_bps,net_2nd_half_bps,trades,signals,hit_rate,buyhold_full_bps,buyhold_2nd_half_bps"]
+        let head = "\(iso.string(from: date)),\(horizon.shortLabel),\(multiTF ? 1 : 0)"
+        for m in markets {
+            let base = "\(head),\(Instrument.find(m.coin).label),\(day.string(from: m.from)),\(day.string(from: m.to)),\(m.bars),\(String(format: "%.2f", m.feeRate * 1e4))"
+            for r in rows where r.coin == m.coin {
+                lines.append("\(base),\(r.ruleName),\(f(r.netFullBps)),\(f(r.netTestBps)),\(r.trades),\(r.signals),\(r.hitRate.map { String(format: "%.3f", $0) } ?? ""),\(f(m.buyHoldFull)),\(f(m.buyHoldTest))")
+            }
+            lines.append("\(base),Kupit a držet,\(f(m.buyHoldFull)),\(f(m.buyHoldTest)),1,,,\(f(m.buyHoldFull)),\(f(m.buyHoldTest))")
+        }
+        for rule in RuleStrategy.all {
+            let s = summary(rule: rule.id)
+            guard s.n > 0 else { continue }
+            lines.append("\(head),PRŮMĚR \(s.n) trhů,,,,,\(rule.name),\(f(s.avgFull)),\(f(s.avgTest)),,,v plusu \(s.positive)/\(s.n) · nad držením \(s.beatHold)/\(s.n),,")
+        }
+        return lines.joined(separator: "\n") + "\n"
+    }
+}
+
+/// Uložené běhy „Pravidla bez AI“ (JSON soubory v Application Support/JevLab/rulelab).
+public final class RuleLabStore: @unchecked Sendable {
+    public let directory: URL
+    private let lock = NSLock()
+
+    public init(directory: URL) {
+        self.directory = directory
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    }
+
+    public static func standard() -> RuleLabStore {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
+        return RuleLabStore(directory: base.appendingPathComponent("JevLab/rulelab", isDirectory: true))
+    }
+
+    private static let encoder: JSONEncoder = {
+        let e = JSONEncoder()
+        e.dateEncodingStrategy = .secondsSince1970
+        return e
+    }()
+
+    private static let decoder: JSONDecoder = {
+        let d = JSONDecoder()
+        d.dateDecodingStrategy = .secondsSince1970
+        return d
+    }()
+
+    public func save(_ run: RuleLabRun) throws {
+        lock.lock()
+        defer { lock.unlock() }
+        try RuleLabStore.encoder.encode(run).write(to: directory.appendingPathComponent("\(run.id.uuidString).json"), options: .atomic)
+    }
+
+    public func all() -> [RuleLabRun] {
+        lock.lock()
+        defer { lock.unlock() }
+        let files = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? []
+        return files.filter { $0.pathExtension == "json" }
+            .compactMap { try? RuleLabStore.decoder.decode(RuleLabRun.self, from: Data(contentsOf: $0)) }
+            .sorted { $0.date > $1.date }
+    }
+
+    public func delete(_ id: UUID) {
+        lock.lock()
+        defer { lock.unlock() }
+        try? FileManager.default.removeItem(at: directory.appendingPathComponent("\(id.uuidString).json"))
     }
 }

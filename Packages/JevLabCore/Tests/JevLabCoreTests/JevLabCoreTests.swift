@@ -576,3 +576,35 @@ final class RuleLabTests: XCTestCase {
         XCTAssertNil(RuleLab.evaluate(coin: "BTC", horizon: .d1, candles: Array(candles.prefix(30)), context: [:], feeRate: 0.00045))
     }
 }
+
+final class RuleLabStoreTests: XCTestCase {
+    func testSaveLoadAndCSV() throws {
+        var candles: [Hyperliquid.Candle] = []
+        var prev = 100.0
+        for i in 0..<200 {
+            let c: Double = 100 + 0.4 * Double(i) + 2 * sin(Double(i) / 4)
+            candles.append(Hyperliquid.Candle(openMs: Int64(i) * 86_400_000, open: prev, close: c,
+                                              high: max(prev, c) + 0.2, low: min(prev, c) - 0.2, volume: 1))
+            prev = c
+        }
+        let m = try XCTUnwrap(RuleLab.evaluate(coin: "SOL", horizon: .d1, candles: candles, context: [:], feeRate: 0.00045))
+        let run = RuleLabRun(date: Date(timeIntervalSince1970: 1_000), horizon: .d1, multiTF: false, results: [m], errors: [])
+        XCTAssertEqual(run.rows.count, RuleStrategy.all.count)
+        XCTAssertEqual(run.summary(rule: "trend").n, 1)
+
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let store = RuleLabStore(directory: dir)
+        try store.save(run)
+        let back = try XCTUnwrap(store.all().first)
+        XCTAssertEqual(back.rows, run.rows)
+        XCTAssertEqual(back.horizon, .d1)
+
+        let csv = back.csv
+        XCTAssertTrue(csv.hasPrefix("run_time,timeframe,context,market"))
+        XCTAssertTrue(csv.contains(",SOL,"))
+        XCTAssertTrue(csv.contains("Kupit a držet"))
+        XCTAssertTrue(csv.contains("PRŮMĚR 1 trhů"))
+        store.delete(back.id)
+        XCTAssertTrue(store.all().isEmpty)
+    }
+}
