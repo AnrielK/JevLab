@@ -56,11 +56,11 @@ public enum Setups {
 }
 
 /// Pravidlová strategie pro srovnání.
-public struct RuleStrategy: Identifiable {
+public struct RuleStrategy: Identifiable, Sendable {
     public var id: String
     public var name: String
     public var detail: String
-    public var signal: ([String: Double]) -> Double
+    public var signal: @Sendable ([String: Double]) -> Double
 
     public static let all: [RuleStrategy] = [
         RuleStrategy(id: "bounce", name: "Odraz S/R + RSI", detail: "long ≤1 ATR nad supportem a RSI ≤ 40; short ≤1 ATR pod rezistencí a RSI ≥ 60",
@@ -76,7 +76,7 @@ public struct RuleStrategy: Identifiable {
     ]
 }
 
-public struct RuleResult: Identifiable {
+public struct RuleResult: Identifiable, Sendable {
     public var rule: RuleStrategy
     public var full: SimResult
     public var test: SimResult?

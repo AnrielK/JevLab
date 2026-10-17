@@ -549,3 +549,30 @@ final class FatalErrorTests: XCTestCase {
         XCTAssertFalse(JevError.isFatal(nil))
     }
 }
+
+final class RuleLabTests: XCTestCase {
+    func testWindowAndEvaluate() throws {
+        let day: Int64 = 86_400_000
+        var candles: [Hyperliquid.Candle] = []
+        var prev = 100.0
+        for i in 0..<300 {
+            // stoupající trend s vlnou: Trend MA by měl být v plusu
+            let c: Double = 100 + 0.5 * Double(i) + 3 * sin(Double(i) / 5)
+            candles.append(Hyperliquid.Candle(openMs: Int64(i) * day, open: prev, close: c,
+                                              high: max(prev, c) + 0.3, low: min(prev, c) - 0.3, volume: 1))
+            prev = c
+        }
+        let w = Features.window(candles, upTo: 50 * day, count: 10)
+        XCTAssertEqual(w.count, 10)
+        XCTAssertEqual(w.last?.openMs, 50 * day)
+        XCTAssertTrue(Features.window(candles, upTo: -1, count: 10).isEmpty)
+
+        let res = try XCTUnwrap(RuleLab.evaluate(coin: "BTC", horizon: .d1, candles: candles, context: [:], feeRate: 0.00045))
+        XCTAssertEqual(res.bars, 300 - Features.warmup - 1)
+        XCTAssertEqual(res.results.count, RuleStrategy.all.count)
+        let trend = try XCTUnwrap(res.results.first { $0.rule.id == "trend" })
+        XCTAssertGreaterThan(trend.full.netBps, 0)
+        XCTAssertGreaterThan(res.buyHoldFull, 0)
+        XCTAssertNil(RuleLab.evaluate(coin: "BTC", horizon: .d1, candles: Array(candles.prefix(30)), context: [:], feeRate: 0.00045))
+    }
+}

@@ -223,6 +223,17 @@ public enum Features {
         return out
     }
 
+    /// Posledních `count` svíček otevřených nejpozději v `tMs` (seřazený seznam, binární hledání).
+    /// Kontext potřebuje jen pár desítek svíček zpět; u dlouhé historie to výpočet výrazně zrychlí.
+    public static func window(_ list: [Hyperliquid.Candle], upTo tMs: Int64, count: Int) -> [Hyperliquid.Candle] {
+        var lo = 0, hi = list.count
+        while lo < hi {
+            let mid = (lo + hi) / 2
+            if list[mid].openMs <= tMs { lo = mid + 1 } else { hi = mid }
+        }
+        return Array(list[max(0, lo - count)..<lo])
+    }
+
     /// Stav pro svíčku `i` primárního rámce + kontext z dalších rámců (klíč = Timeframe).
     public static func state(candles: [Hyperliquid.Candle], at i: Int, horizon: Horizon,
                              context: [Timeframe: [Hyperliquid.Candle]]) -> [String: Double]? {
@@ -234,7 +245,8 @@ public enum Features {
         for (tf, list) in context {
             // S/R hlavně z obchodního a vyšších rámců; nižší rámec dává jen texturu
             let higher = tf.minutes > horizon.minutes
-            for (k, v) in Features.context(tf, candles: list, tMs: tMs, price: candles[i].close, includeSR: higher) { s[k] = v }
+            let win = window(list, upTo: tMs, count: 90)
+            for (k, v) in Features.context(tf, candles: win, tMs: tMs, price: candles[i].close, includeSR: higher) { s[k] = v }
         }
         // hotové kombinace (S/R + RSI + trend), aby je Jev nemusel odvozovat
         for (k, v) in Setups.flags(s) { s[k] = v }

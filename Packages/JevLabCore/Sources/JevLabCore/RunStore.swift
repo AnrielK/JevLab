@@ -1,13 +1,14 @@
 import Foundation
 
 public enum RunKind: String, Codable, Sendable, CaseIterable {
-    case tick, live, backtest
+    case tick, live, backtest, rules
 
     public var label: String {
         switch self {
         case .tick: return "Smyčka"
         case .live: return "Horizont živě"
         case .backtest: return "Backtest"
+        case .rules: return "Pravidla"
         }
     }
 }
