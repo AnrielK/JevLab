@@ -43,6 +43,11 @@ Packages/JevLabCore/              logika bez UI (testovatelná přes swift test)
 .github/workflows/build.yml       CI: testy jádra → iOS IPA + macOS app (nepodepsané)
 ```
 
+## TradingView
+
+- Grafy používají [TradingView Lightweight Charts™](https://www.tradingview.com/lightweight-charts/) (Apache 2.0), přibalené v `JevLab/Resources/Web`. Data jsou z Hyperliquid, ne z TradingView (TradingView nemá veřejné datové API).
+- `pine/jevlab_trend_ma.pine` je strategie Trend MA pro TradingView: Pine Editor → vložit → Přidat do grafu → Strategy Tester.
+
 ## Build
 
 ```sh

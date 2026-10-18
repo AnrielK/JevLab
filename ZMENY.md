@@ -1,5 +1,11 @@
 # Změny
 
+## 0.9.1 · 2026-10-18
+
+- Graf v Trend strategii: TradingView Lightweight Charts™ 5.2.1 (přibalené v aplikaci, Apache 2.0) se svíčkami, MA20/MA50, šipkami vstupů a výstupů vybrané varianty a čárkovaným supportem a rezistencí. Posun a zoom prstem. Atribuce TradingView v grafu a v Nastavení → Licence.
+- `pine/jevlab_trend_ma.pine`: stejná strategie Trend MA jako Pine Script v6 pro TradingView (Strategy Tester) k nezávislému ověření.
+- Výchozí varianta Trend strategie je „Trend MA · jen long“.
+
 ## 0.9.0 · 2026-10-17
 
 - Trend strategie (z Horizontu, zdarma, bez AI): Trend MA a Průraz na celé historii Hyperliquid v 8 variantách (long/short vs jen long, stálá pozice vs velikost podle ATR). Pro každou výsledek za rok, na 2. polovině, největší propad, obchody a čas v pozici; srovnání s držením long; graf kapitálu; export CSV.

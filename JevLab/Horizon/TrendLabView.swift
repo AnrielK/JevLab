@@ -35,7 +35,14 @@ struct TrendLabView: View {
                 }
                 if let rep = lab.report {
                     SignalCard(report: rep, variant: lab.selected)
-                    VariantsCard(report: rep, selected: Binding(get: { lab.selected }, set: { lab.selected = $0 }))
+                    Card("Graf · \(Instrument.find(rep.coin).label) \(rep.horizon.shortLabel) · \(lab.selected.label)") {
+                        LightweightChartView(json: lab.chartJSON)
+                            .frame(height: 340)
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                        Text("Šipky = vstupy a výstupy vybrané varianty, žlutá MA20, fialová MA50, čárkovaně nejbližší support a rezistence. Graf: TradingView Lightweight Charts™.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    VariantsCard(report: rep, selected: Binding(get: { lab.selected }, set: { lab.select($0) }))
                     if let sel = lab.selectedResult {
                         EquityCard(report: rep, result: sel)
                     }

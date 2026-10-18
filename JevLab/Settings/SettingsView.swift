@@ -86,6 +86,17 @@ struct SettingsView: View {
                     Text(model.strategy.make().summary)
                 }
 
+                Section {
+                    Text("Grafy: TradingView Lightweight Charts™\nCopyright (c) 2025 TradingView, Inc.")
+                        .font(.footnote)
+                    Link("tradingview.com", destination: URL(string: "https://www.tradingview.com/")!)
+                        .font(.footnote)
+                } header: {
+                    Text("Licence")
+                } footer: {
+                    Text("Lightweight Charts jsou pod licencí Apache 2.0.")
+                }
+
                 Section("O aplikaci") {
                     Text("JevLab je jen papírové obchodování: čte veřejná data Hyperliquid a fills simuluje. Nikdy neposílá skutečnou objednávku a nepotřebuje účet na burze.")
                     Text("Není to finanční poradenství. Žádná strategie nemá zaručený zisk.")

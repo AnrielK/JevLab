@@ -247,7 +247,22 @@ public final class TrendLab {
     public private(set) var report: TrendReport?
     public private(set) var running = false
     public private(set) var error: String?
-    public var selected: TrendVariant = TrendVariant(ruleID: "trend", direction: .longShort, sizing: .fixed)
+    public private(set) var selected: TrendVariant = TrendVariant(ruleID: "trend", direction: .longOnly, sizing: .fixed)
+    /// JSON pro graf (svíčky, MA, značky vybrané varianty, S/R).
+    public private(set) var chartJSON = ""
+
+    public func select(_ v: TrendVariant) {
+        selected = v
+        rebuildChart(fit: false)
+    }
+
+    private func rebuildChart(fit: Bool) {
+        guard let r = report else {
+            chartJSON = ""
+            return
+        }
+        chartJSON = TrendChartData.make(r, variant: selected).json(fit: fit)
+    }
 
     @ObservationIgnored private var task: Task<Void, Never>?
 
@@ -265,7 +280,12 @@ public final class TrendLab {
                     TrendMath.report(coin: coin, horizon: horizon, candles: data.0, feeRate: fee)
                 }.value
                 if Task.isCancelled { return }
-                if let rep { self?.report = rep } else { self?.error = "Málo historie pro \(Instrument.find(coin).label)." }
+                if let rep {
+                    self?.report = rep
+                    self?.rebuildChart(fit: true)
+                } else {
+                    self?.error = "Málo historie pro \(Instrument.find(coin).label)."
+                }
             } catch {
                 self?.error = error.localizedDescription
             }
