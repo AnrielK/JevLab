@@ -58,6 +58,74 @@ public struct TrendReport: Sendable {
     public var variants: [TrendVariantResult]
     public var records: [CallRecord]
     public var current: [String: TrendSignal]
+    /// Svíčky pro graf (všechny uzavřené).
+    public var candles: [Hyperliquid.Candle] = []
+    /// Nejbližší support / rezistence na poslední svíčce (cena).
+    public var support: Double?
+    public var resistance: Double?
+}
+
+/// Data pro graf: svíčky, MA20/MA50, značky vstupů a výstupů vybrané varianty, úrovně S/R.
+public struct TrendChartData: Sendable {
+    public struct Marker: Sendable, Equatable {
+        public var time: Int64
+        public var kind: String   // "long", "short", "exit"
+    }
+
+    public var candles: [Hyperliquid.Candle]
+    public var ma20: [(time: Int64, value: Double)]
+    public var ma50: [(time: Int64, value: Double)]
+    public var markers: [Marker]
+    public var support: Double?
+    public var resistance: Double?
+
+    public static func make(_ r: TrendReport, variant: TrendVariant) -> TrendChartData {
+        let c = r.candles
+        var m20: [(Int64, Double)] = []
+        var m50: [(Int64, Double)] = []
+        for i in c.indices {
+            if let v = Indicators.sma(c, end: i, n: 20) { m20.append((c[i].openMs / 1000, v)) }
+            if let v = Indicators.sma(c, end: i, n: 50) { m50.append((c[i].openMs / 1000, v)) }
+        }
+        // značky jen při změně směru (u ATR se mění i velikost, to se neznačí)
+        let t = TrendMath.targets(r.records, variant: variant)
+        var marks: [Marker] = []
+        var prev = 0.0
+        for (rec, x) in zip(r.records, t) {
+            let a = prev > 0 ? 1 : prev < 0 ? -1 : 0
+            let b = x > 0 ? 1 : x < 0 ? -1 : 0
+            if a != b, rec.id < c.count {
+                marks.append(Marker(time: c[rec.id].openMs / 1000, kind: b > 0 ? "long" : b < 0 ? "short" : "exit"))
+            }
+            prev = x
+        }
+        return TrendChartData(candles: c, ma20: m20.map { (time: $0.0, value: $0.1) }, ma50: m50.map { (time: $0.0, value: $0.1) },
+                              markers: marks, support: r.support, resistance: r.resistance)
+    }
+
+    /// JSON pro JS funkci render() v grafu.
+    public func json(fit: Bool) -> String {
+        func r(_ x: Double) -> Double { (x * 1e6).rounded() / 1e6 }
+        let obj: [String: Any] = [
+            "fit": fit,
+            "candles": candles.map { ["time": $0.openMs / 1000, "open": r($0.open), "high": r($0.high), "low": r($0.low), "close": r($0.close)] },
+            "ma20": ma20.map { ["time": $0.time, "value": r($0.value)] },
+            "ma50": ma50.map { ["time": $0.time, "value": r($0.value)] },
+            "markers": markers.map { m -> [String: Any] in
+                switch m.kind {
+                case "long": return ["time": m.time, "position": "belowBar", "shape": "arrowUp", "color": "#3fd68a", "text": "Long"]
+                case "short": return ["time": m.time, "position": "aboveBar", "shape": "arrowDown", "color": "#ff5d6c", "text": "Short"]
+                default: return ["time": m.time, "position": "aboveBar", "shape": "circle", "color": "#9aa4b2", "text": "Ven"]
+                }
+            },
+            "levels": [
+                support.map { ["price": r($0), "color": "#3fd68a", "title": "support"] },
+                resistance.map { ["price": r($0), "color": "#ff5d6c", "title": "rezistence"] },
+            ].compactMap { $0 },
+        ]
+        guard let data = try? JSONSerialization.data(withJSONObject: obj), let s = String(data: data, encoding: .utf8) else { return "{}" }
+        return s
+    }
 }
 
 public enum TrendMath {
@@ -142,12 +210,19 @@ public enum TrendMath {
                                         price: withLast.last?.price ?? 0, ma20DistBps: st?["ma20_dist_bps"],
                                         ma50DistBps: st?["ma50_dist_bps"])
         }
+        var support: Double?
+        var resistance: Double?
+        if let st = withLast.last?.state, let p = withLast.last?.price {
+            if let d = st["support_dist_bps"] { support = p / (1 + d / 1e4) }
+            if let d = st["resistance_dist_bps"] { resistance = p * (1 + d / 1e4) }
+        }
         let from = records.first?.date ?? Date()
         let to = records.last?.date ?? Date()
         return TrendReport(coin: coin, horizon: horizon, bars: records.count, from: from, to: to,
                            years: max(0.01, to.timeIntervalSince(from) / (365.25 * 86_400)), feeRate: feeRate,
                            holdFull: holdFull, holdTest: holdTest, holdDrawdownUsd: maxDrawdown(holdFull),
-                           variants: variants, records: records, current: current)
+                           variants: variants, records: records, current: current,
+                           candles: candles, support: support, resistance: resistance)
     }
 
     /// CSV srovnání variant.

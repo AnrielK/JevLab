@@ -664,3 +664,30 @@ final class TrendLabTests: XCTestCase {
         XCTAssertGreaterThan(rep.years, 1)
     }
 }
+
+final class TrendChartTests: XCTestCase {
+    func testChartDataMarkersAndJSON() throws {
+        var candles: [Hyperliquid.Candle] = []
+        var prev = 100.0
+        for i in 0..<260 {
+            // nahoru, pak dolů: musí vzniknout vstup long a výstup
+            let c: Double = i < 150 ? 100 + 0.5 * Double(i) : 175 - 0.6 * Double(i - 150)
+            candles.append(Hyperliquid.Candle(openMs: Int64(i) * 86_400_000, open: prev, close: c,
+                                              high: max(prev, c) + 0.3, low: min(prev, c) - 0.3, volume: 1))
+            prev = c
+        }
+        let rep = try XCTUnwrap(TrendMath.report(coin: "BTC", horizon: .d1, candles: candles, feeRate: 0.00045))
+        XCTAssertEqual(rep.candles.count, 260)
+        let data = TrendChartData.make(rep, variant: TrendVariant(ruleID: "trend", direction: .longOnly, sizing: .fixed))
+        XCTAssertEqual(data.ma20.count, 260 - 19)
+        XCTAssertEqual(data.ma50.count, 260 - 49)
+        XCTAssertEqual(data.markers.first?.kind, "long")
+        XCTAssertTrue(data.markers.contains { $0.kind == "exit" })
+        XCTAssertFalse(data.markers.contains { $0.kind == "short" })
+        XCTAssertEqual(data.markers.map(\.time), data.markers.map(\.time).sorted())
+        let json = data.json(fit: true)
+        let obj = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])
+        XCTAssertEqual((obj["candles"] as? [Any])?.count, 260)
+        XCTAssertEqual(obj["fit"] as? Bool, true)
+    }
+}
